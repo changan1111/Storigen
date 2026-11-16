@@ -1,0 +1,8 @@
+# v10.0.0 - three-pane workspace
+
+* **Top bar**: the date and the bulletin are now chosen at the top of the page (date box and bulletin list), next to the five counters (Total Stories, On Nitro, Needs Desk, Waiting, Attached) and the search box. The bulletin list no longer sits inside the panes.
+* **Left pane - Rundown (N)**: only the stories of the selected date and bulletin, as `# | Story Title | Status`, with an "All Stories / Ready on Nitro / Need attention / All action / Waiting / Done" filter. Status names: Ready (on Nitro), Attached, Waiting, Exporting, Needs Desk.
+* **Middle pane - Script - Story NN**: Online script and Anchor script tabs (names from SCRIPT_LABEL_ONLINE / SCRIPT_LABEL_ANCHOR), Prev / Next / Next needing action, word and character count, A- / A / A+ text size (remembered), Copy.
+* **Right pane - Media & IDs**: Media ID (clip ID) with Copy ID, Blaze Story ID, Slug ID, the buttons (Open in Blaze, Mark attached, Quick test attach, Versions), Story Details (show, show ID, bulletin, row, slug, story name, folder, version, internal ID, status, updated), Blaze / MOS (MOS object ID, item ID, Blaze clip ID, clip duration, media file), the 3-step workflow and the history timeline.
+* The first story of the bulletin is selected by itself; there is no pop-up any more. Under 1000 px the three panes stack one under the other.
+* Version number is 10.0.0 (`autoid_lite/common.py`, shown in the page header and in /api/config). Only `common.py`, `web/index.html`, `tools/standalone_shim.js` and the tests changed; no API, database or poller change, so dropping the new files over 9.16.1 is enough.

@@ -1,0 +1,13 @@
+# v9.13 (Storigen): "Quick test attach" button on every story
+
+Everything of v9.12 plus:
+
+* **Quick test attach** button on each story card in the dashboard (list and bulletin views). Click it, a window asks **Yes / No**. **Yes** sends ONE real attach of that clip to that story in Blaze, **even while `BLAZE_ATTACH=dry`**, then reads the story back (exactly one new clip with that file) and shows the result under the card: attached / NOT sent (and why) / FAILED. Use it to check one story by hand, then look at it in Blaze.
+* **Enabled only when the NITRO step is green** (Blaze's media object for the clip was found). Otherwise the button is greyed out and its tooltip says why. It is also greyed out for a clip that is already attached, a story removed from the rundown, a story typed by hand, or while its own quick test is running. An attached story shows no button.
+* How it works: the dashboard only records the request (`POST /api/clips/<id>/quickattach`, needs the Yes and the `attach` permission). The poller, which owns the Blaze session, sees it on its next round (a few seconds), sends the attach, reads back, and reports (`POST /svc/quickattach/result`). Everything is in the audit events and in `attach_watch.log` (`QUICK TEST ...` lines).
+* **Safety, unchanged for a quick test:** only verified story formats (`BLAZE_VERIFIED_FORMATS`, default 20,21) and a known itemId and row; one settled file; the file must not already be in the story; the kill switch file `data/STOP_LIVE`; **one attempt per clip, ever** (a failed one is not repeated by itself: check Blaze, then `blaze_poll.py live-retry <id>`). A blocked quick test sends nothing and the dashboard says why.
+* **What a quick test skips:** the `QUICKTEST_*` / `BLAZE_LIVE_SHOW_IDS` narrowing lines, the `BLAZE_ATTACH_WHEN=watcher` wait and the hourly cap (an editor confirmed this one clip). It only ADDS the clip: for a new version (`_V2`) the older version's clip is NOT removed, do that by hand.
+* **The technical wall:** in dry mode `attach` and the script-duration update still raise `ForbiddenCall` for everything except one story inside a confirmed quick test (`BlazeClient.quick()`, one thread, one story, cleared afterwards). Every other write is still refused by `check_call`.
+* `QUICK_TEST_BUTTON=0` in `autoid.env` removes the button for good (the server then answers 403). Default `1`. `/api/config` reports `quick_attach`.
+* New columns on `clip_ids` (added by themselves at start): `qa_state`, `qa_by`, `qa_at`, `qa_msg`. Version `9.13`.
+* Tests: `tests/test_quick_test_button.py` (8), version checks updated, `test_four_step_strip_and_dry_wall.py` now pins that `quick()` is the only way past the dry guard.

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Auto-ID Linker: installation and going live</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#1d2433;--muted:#5b6475;--line:#d9d6cc;--panel:#f1eee6;--accent:#1f5f8b;--ok:#1d6b3f;--warn:#8a4b00;--bad:#a02323;
+  --serif:Georgia,"Times New Roman",serif;--sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:ui-monospace,Menlo,Consolas,monospace;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14181f;--fg:#e7e9ee;--muted:#9aa3b2;--line:#2d3441;--panel:#1c222c;--accent:#7fb8e6;--ok:#6cc78f;--warn:#e5a85c;--bad:#f08a8a}}
+:root[data-theme="dark"]{--bg:#14181f;--fg:#e7e9ee;--muted:#9aa3b2;--line:#2d3441;--panel:#1c222c;--accent:#7fb8e6;--ok:#6cc78f;--warn:#e5a85c;--bad:#f08a8a}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 var(--sans)}
+main{max-width:50rem;margin:0 auto;padding:1.5rem 1.1rem 4rem}
+h1{font:600 1.8rem/1.2 var(--serif);margin:.2rem 0 .5rem}
+h2{font:600 1.3rem/1.3 var(--serif);margin:2.4rem 0 .6rem;padding-top:1rem;border-top:1px solid var(--line)}
+h3{font:600 1.02rem/1.3 var(--sans);margin:1.3rem 0 .3rem}
+p,li{max-width:42rem}
+.lede{color:var(--muted)}
+code{font:.88em var(--mono);background:var(--panel);padding:.1em .35em;border-radius:3px;overflow-wrap:anywhere}
+pre{font:.84rem/1.5 var(--mono);background:var(--panel);padding:.75rem .9rem;border-radius:4px;overflow-x:auto;margin:.5rem 0}
+pre code{background:none;padding:0}
+ol,ul{padding-left:1.3rem}li{margin:.35rem 0}
+.box{border-left:4px solid var(--accent);background:var(--panel);padding:.7rem 1rem;margin:.9rem 0;border-radius:0 4px 4px 0}
+.box.stop{border-color:var(--bad)}.box.ok{border-color:var(--ok)}.box.warn{border-color:var(--warn)}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:.93rem}
+th,td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:.45rem .6rem}th{font-weight:600}
+nav ol{columns:1;color:var(--muted)}nav a{color:var(--accent)}
+.chk li{list-style:none;margin-left:-1.2rem}.chk li::before{content:"\2610\00a0"}
+</style>
+</head>
+<body>
+<main>
+<h1>Auto-ID Linker: installation and going live</h1>
+<p class="lede">Version 9.6.0 (v9.1 plus the dashboard with paging and the by-bulletin view, the report page, automatic show discovery, complete-day polling with a round deadline, and day close/open). It gives each Blaze story a clip ID, follows the file from Playout to Nitro, and says which story each finished clip belongs to. It can also attach the clip in Blaze for you, but that is <strong>off</strong> until you switch it on in section 8.</p>
+
+<nav><ol>
+<li><a href="#before">Before you start</a></li>
+<li><a href="#mac">Install on a Mac</a></li>
+<li><a href="#win">Install on Windows</a></li>
+<li><a href="#cfg">Settings that matter</a></li>
+<li><a href="#check">First checks</a></li>
+<li><a href="#blaze">Connect to Blaze (read-only)</a></li>
+<li><a href="#watch">Watch for 5 days (dry run)</a></li>
+<li><a href="#dash">The dashboard and the report page</a></li>
+<li><a href="#live">Going live</a></li>
+<li><a href="#stop">Stopping, undoing, rolling back</a></li>
+<li><a href="#log">Reading the log</a></li>
+<li><a href="#open">Still open</a></li>
+</ol></nav>
+
+<h2 id="before">1. Before you start</h2>
+<ul>
+<li>Python 3.9 or newer (<code>python3 --version</code>). Nothing else to install.</li>
+<li>A Blaze user made only for this tool. Treat its session cookie like a password and never put it in chat or source control.</li>
+<li>Read-only access to the Playout INBOX and the Nitro folders. The program never moves, copies, renames or deletes a file there.</li>
+<li>The Blaze calls used are the ones Blaze’s own web page makes. They are not vendor-documented and a Blaze update can change them. Check your support terms first.</li>
+</ul>
+
+<h2 id="mac">2. Install on a Mac</h2>
+<ol>
+<li>Copy the folder to the Mac. In Terminal inside it run:
+<pre><code>./deploy/mac/install_mac.sh you@company.com</code></pre>
+It creates <code>autoid.env</code> with fresh secrets and a launchd job, and prints the first admin password <strong>once</strong>. Write it down.</li>
+<li>Mount the shares so they appear under <code>/Volumes/...</code>: edit the two lines in <code>deploy/mac/mount_shares.sh</code> and run it. Use a read-only account for Nitro.</li>
+<li>Edit <code>autoid.env</code>: <code>LINK_MODE</code>, <code>EXPORTS_DIR</code>, <code>INBOX_SUBDIRS</code>, <code>NITRO_DIR</code> (see section 4).</li>
+<li>Run the checks (section 5), then start:
+<pre><code>launchctl load -w ~/Library/LaunchAgents/com.autoid.lite.plist
+launchctl load -w ~/Library/LaunchAgents/com.autoid.lite.restart.plist   # nightly restart at 04:30</code></pre></li>
+<li>Open <code>http://&lt;mac-name&gt;:8080</code> and sign in as the admin.</li>
+<li>Always-on Mac: run <code>./deploy/mac/keep_awake.sh</code>. Automatic login is needed for the launchd job and is not available while FileVault is on. macOS may ask once to allow access to network volumes: allow it.</li>
+</ol>
+<div class="box warn">To restart after a settings change: <code>launchctl unload ~/Library/LaunchAgents/com.autoid.lite.plist</code>, then <code>load -w</code> again. To update the program, replace the program files and keep <code>autoid.env</code> and <code>data/</code>.</div>
+
+<h2 id="win">3. Install on Windows</h2>
+<p>The script is included but has not been tried on a real PC.</p>
+<ol>
+<li>Run <code>deploy\windows\install_windows.ps1</code> in PowerShell as Administrator.</li>
+<li>Use UNC paths in <code>autoid.env</code>, for example <code>\\nas\Playout\INBOX</code>.</li>
+<li>Run the checks in section 5 with <code>py autoid.py ...</code> instead of <code>python3 autoid.py ...</code>.</li>
+</ol>
+
+<h2 id="cfg">4. Settings that matter (<code>autoid.env</code>)</h2>
+<div class="tw"><table>
+<tr><th>Setting</th><th>Use</th></tr>
+<tr><td><code>LINK_MODE=story_id</code></td><td>IDs are made from Blaze’s own story ID. Needed for the Blaze poller.</td></tr>
+<tr><td><code>BROADCAST_DAY_START</code></td><td>The clip ID date changes at this time (default 05:00), not at midnight.</td></tr>
+<tr><td><code>BLAZE_POLL=1</code></td><td>Starts the poller with the program.</td></tr>
+<tr><td><code>BLAZE_URL</code>, <code>BLAZE_SESSION_ID</code>, <code>BLAZE_USERNAME</code></td><td>Blaze address, and the two cookies copied from a logged-in Blaze tab (DevTools, Application, Cookies).</td></tr>
+<tr><td><code>BLAZE_SHOW_IDS=auto</code></td><td><strong>Recommended.</strong> The poller asks Blaze for the broadcast day’s shows (the same call the rundown panel makes) and follows all of them, about 36 a day. A fixed list still works: comma-separated show IDs, the number in <code>/DataService/shows/34498/slugs</code>.</td></tr>
+<tr><td><code>BLAZE_CONCURRENCY=6</code>, <code>BLAZE_TIMEOUT_SECS=15</code>, <code>BLAZE_RETRY_MAX_SECS=60</code></td><td><strong>Complete-day polling:</strong> every show of the day is read every pass (15 s), several at a time. A show that fails keeps its last good snapshot and is retried after a growing delay, without blocking the others.</td></tr>
+<tr><td><code>BLAZE_FRESH_SECS=15</code>, <code>BLAZE_STALE_SECS=90</code></td><td>A show not read for longer than FRESH is counted as over the freshness target; longer than STALE it appears as a problem on the status pill.</td></tr>
+<tr><td><code>BLAZE_IDENT_SECS=120</code>, <code>BLAZE_IDENT_BATCH=60</code></td><td>How often each story with clips has its attachments re-read (identity sweep). See the trade-off in <code>docs/CHANGES_v94.md</code>.</td></tr>
+<tr><td><code>BLAZE_RECON_BATCH=60</code>, <code>BLAZE_MEDIA_BATCH=40</code>, <code>BLAZE_INFO_SECS=60</code></td><td>Bounds on the heavier reads per pass, so 600+ stories never stall a round.</td></tr>
+<tr><td><code>BLAZE_CYCLE_DEADLINE_SECS</code>, <code>BLAZE_REQUEST_RETRIES=1</code>, <code>BLAZE_KEEP_COMPLETED=1</code>, <code>BLAZE_HOT_BEFORE_MIN=60</code>, <code>BLAZE_SNAPSHOT_KEEP_DAYS=14</code></td><td><strong>v9.5:</strong> a round waits at most the deadline (default the poll interval) for its parallel reads and never requests a slow one twice; a network or 5xx failure is retried quickly; a finished show Blaze stops listing is still followed until the day closes; old snapshots are pruned. <code>blaze_poll.py close-day</code> / <code>open-day</code> pause and resume a broadcast day.</td></tr>
+<tr><td><code>BLAZE_SHOW_LOOKAHEAD_HOURS=5</code></td><td><strong>v9.5.1:</strong> shows listed under tomorrow’s date that start within this many hours and before the broadcast day ends (<code>BROADCAST_DAY_START</code>, default 05:00) are followed already, so a 00:00 show is not missed. 0 = off. <code>blaze_poll.py shows</code> lists them.</td></tr>
+<tr><td><code>BLAZE_VERSION_MODE=desk</code></td><td><strong>v9.6:</strong> clips of version 2 and up (<code>_V2</code>…). <code>desk</code>: never attached by the tool, the desk is told. <code>auto</code> (needs live attach): attach the new clip, verify, then remove the older version’s clip with a second call; never delete first. See docs/CHANGES_v95.md.</td></tr>
+<tr><td><code>BLAZE_SHOW_DAYS_AHEAD=0</code>, <code>BLAZE_IGNORE_SHOW_TITLES</code>, <code>BLAZE_SHOW_LIST_SECS=60</code></td><td>Also follow tomorrow’s shows (set 1); words in a show title that make it ignored (for example TEST); how often the day’s list is asked again.</td></tr>
+<tr><td><code>BLAZE_ATTACH</code></td><td><code>off</code>, <code>dry</code> (default: log only) or <code>live</code> (section 8).</td></tr>
+<tr><td><code>BLAZE_ATTACH_WHEN</code></td><td><code>media</code> (default) logs GOING TO ATTACH once the file is in Blaze’s media list. <code>watcher</code> waits until the clip is on Nitro.</td></tr>
+<tr><td><code>BLAZE_ONLY_FORMAT_IDS</code>, <code>BLAZE_IGNORE_TITLES</code></td><td>Which story formats get IDs, and which template rows (BREAK, OPEN MONTAGE) never do.</td></tr>
+<tr><td><code>BLAZE_VERIFIED_FORMATS=20,21</code></td><td>Story formats whose <code>itemId</code> rule is confirmed (20 and 21 = Anchor visual). Others are tagged CHECK and never attached live.</td></tr>
+<tr><td><code>BLAZE_HEARTBEAT=page</code></td><td>The keep-alive as the Blaze page does it: a GET on the session every minute and a PUT every 8 minutes (captured over 2.2 hours). <code>get</code>, <code>put</code> or <code>both</code> remain available.</td></tr>
+</table></div>
+
+<h2 id="check">5. First checks</h2>
+<pre><code>python3 autoid.py doctor     # fix every FIX line it prints
+python3 autoid.py selftest
+python3 -m pytest tests      # optional, needs: pip install pytest</code></pre>
+<p>Commands: <code>python3 autoid.py init | run | status | doctor | selftest | backup</code>. Logs are in <code>data/logs/</code>, the database is <code>data/autoid.db</code>, and a copy is made daily in <code>data/backups/</code> (14 kept).</p>
+
+<h2 id="blaze">6. Connect to Blaze (read-only)</h2>
+<p>Put the cookies and show IDs in <code>autoid.env</code>, then try each command by hand:</p>
+<pre><code>python3 tools/blaze_poll.py shows         # the day’s shows as Blaze lists them: id, start, title, stories, master, last read
+python3 tools/blaze_poll.py show 34498    # the rundown name and its stories
+python3 tools/blaze_poll.py media         # Blaze's Playout media list
+python3 tools/blaze_poll.py once          # one full pass, printed, then exit
+python3 tools/blaze_poll.py map           # show / slug / story / clip ID for today</code></pre>
+<p>If the log says <code>PROBLEM</code> and <code>blaze_poll</code> turns red on the page, the session cookie has expired. Copy fresh <code>sessionId</code> and <code>username</code> cookies into <code>autoid.env</code> and restart. The nightly restart only clears memory; it does not renew the cookie.</p>
+
+<h2 id="watch">7. Watch for 5 days (dry run)</h2>
+<p>Keep <code>BLAZE_ATTACH=dry</code>. Nothing is sent to Blaze; the poller writes, once per clip, to the log and to <code>data/reports/attach_watch.log</code>:</p>
+<pre><code>READY ON NITRO   clip 20261107_0003J_X is on Nitro: ready for story 726521 "EXP VNR" (show 34498 ..., row 148)
+GOING TO ATTACH  clip 20261107_0003J_X (file ..mxf, media 1105862, 50s) to story 726521 ... | order=149 itemId=937639 | DRY RUN: nothing sent to Blaze</code></pre>
+<p>Each day: read the CHECK tags and the daily CSV in <code>data/reports/</code>, then run:</p>
+<pre><code>python3 tools/blaze_poll.py summary 5</code></pre>
+<p>It prints, for each day, what the tool would have attached against what the desk really attached. Look for DISAGREE, TOOL_MISSED, WRONG_STORY and DUPLICATE rows.</p>
+<ul class="chk">
+<li>5 days on real bulletins with agreement staying clean</li>
+<li>No unexplained CHECK tags, or each one understood</li>
+<li>The session survived the whole time (or you know how long it lasts)</li>
+</ul>
+
+<h2 id="dash">7A. The dashboard and the report page</h2>
+<h3>The dashboard (story tracker)</h3>
+<p>Open <code>http://&lt;machine-name&gt;:8080</code> and sign in. A day has 540 to 720 stories, so the list is paged (25, 50, 100 or 200 per page) and can be searched (story name, clip ID or Blaze story ID) and narrowed to one show. It shows, for the chosen broadcast day: counts (total IDs, on Nitro, needs desk, waiting, attached); a list of stories with their state, show, row, clip ID and Blaze story ID; the filters <strong>All / Action / Waiting / Done</strong>; and the buttons the desk already used (Copy ID, + Version, Open in Blaze, Mark attached). <strong>View details</strong> opens the selected story with its media file and a history: story received, Auto-ID generated, export detected, Nitro file detected, attachment verified, plus the reason when something needs the desk. The page refreshes every 5 seconds. The green or red pill at the top says whether every service (watcher, poller) is reporting.</p>
+<h3>The tool-vs-desk report page</h3>
+<p>The button <strong>Tool vs desk report</strong> on the dashboard opens it (same login). It shows the agreement percentage, the clips that need a look and why, every clip per show with what the tool would attach next to what the editor attached, and the last 5 days. <code>/report</code> is today and <code>/report/20261107</code> a given day.</p>
+<ul>
+<li>The poller writes the page, about once a minute while it runs, to <code>data/reports/agreement_YYYYMMDD.html</code> (next to the CSV). It is self-contained: you can also open the file straight from the folder or email it.</li>
+<li>The web app reads the same folder. If you moved it with <code>BLAZE_REPORT_DIR</code>, the setting must be the same for both (it is, when both read the same <code>autoid.env</code>).</li>
+<li>No poller running or no clips yet: the page says there is no report for that day yet.</li>
+<li>While <code>BLAZE_ATTACH=live</code> is on, clips the tool attached itself count as AGREE, and the page says so.</li>
+</ul>
+
+<h2 id="live">8. Going live</h2>
+<div class="box stop"><strong>Do not start until every box is ticked.</strong>
+<ul class="chk">
+<li>The 5-day watch in section 7 is clean.</li>
+<li>Your Blaze support terms allow this tool to attach, and it uses its own Blaze user.</li>
+<li>With <code>BLAZE_SHOW_IDS=auto</code> the show IDs change every day, so allow live by <strong>time slot</strong>: <code>BLAZE_LIVE_MASTER_IDS=13</code> (the <code>masterId</code> in <code>blaze_poll.py shows</code>; 13 is the 06:30 AM bulletin) instead of <code>BLAZE_LIVE_SHOW_IDS</code>.</li>
+<li>You have a <strong>test show</strong> in Blaze for the first live clips.</li>
+<li>You know what Blaze answers to a duplicate attach and to a locked story, and the <code>itemId</code> for any format beyond Anchor you intend to use. Until then keep <code>BLAZE_VERIFIED_FORMATS=20</code>.</li>
+</ul></div>
+<h3>What live does</h3>
+<p>For a clip it attaches once, and only when <strong>all</strong> of these hold: its show is in <code>BLAZE_LIVE_SHOW_IDS</code>; the clip is on Nitro; exactly one settled file matches in Blaze; the story format is verified; there is no CHECK tag (so no linked story); the kill-switch file is absent; the hourly limit is not reached. The attempt is written to the ledger <em>before</em> the call, so a clip is never sent twice, not even after a crash. Afterwards the story is read back and must show exactly one new clip with that file. Anything else goes to the desk as NEEDS_DESK with the reason, and is not tried again by itself. After 3 failures in a row live stops by itself.</p>
+<h3>Switch it on, step by step</h3>
+<ol>
+<li>Stop the program (section 2, unload).</li>
+<li>In <code>autoid.env</code> set all three together, with the <strong>test show only</strong>:
+<pre><code>BLAZE_ATTACH=live
+BLAZE_LIVE_MASTER_IDS=&lt;test slot&gt;        # with BLAZE_SHOW_IDS=auto; or BLAZE_LIVE_SHOW_IDS=&lt;show id&gt; with a fixed list
+BLAZE_LIVE_CONFIRM=YES_ATTACH_FOR_REAL</code></pre>
+With any of the three missing, the poller refuses to start and says which.</li>
+<li>Start the program. The first line should say <code>attach=live LIVE for shows ...</code>. Check:
+<pre><code>python3 tools/blaze_poll.py live</code></pre></li>
+<li>Export one clip for a story in the test show. Expect <code>READY ON NITRO</code>, then <code>GOING TO ATTACH ... LIVE: sending now</code>, <code>ATTACHING</code> and <code>ATTACHED</code>.</li>
+<li>Open that story in Blaze and check: the clip is there once, in the right place, with the right duration. The page also sends a <code>scriptDur</code> update after an attach; this tool does <strong>not</strong>, so check the duration of stories with script text.</li>
+<li>If anything is wrong, undo (section 9). If it is right, repeat with a few more clips before widening.</li>
+<li>To widen, add show IDs to <code>BLAZE_LIVE_SHOW_IDS</code> one at a time and restart.</li>
+</ol>
+
+<h2 id="stop">9. Stopping, undoing, rolling back</h2>
+<div class="tw"><table>
+<tr><th>You want to</th><th>Do this</th></tr>
+<tr><td>Stop all sending at once, no restart</td><td>Create the file <code>data/STOP_LIVE</code>. While it exists nothing is sent. Delete it to resume. Live also creates it by itself after 3 failures in a row (<code>LIVE HALTED</code>).</td></tr>
+<tr><td>Go back to log-only</td><td>Set <code>BLAZE_ATTACH=dry</code> and restart.</td></tr>
+<tr><td>See what live did</td><td><code>python3 tools/blaze_poll.py live</code> (switches, kill switch, sent in the last hour, last attempts).</td></tr>
+<tr><td>Remove a clip the tool attached</td><td><code>python3 tools/blaze_poll.py undo &lt;clip ID&gt;</code>. If the read-back found several new clips, add the Blaze clip ID it listed: <code>undo &lt;clip ID&gt; &lt;blazeClipId&gt;</code>. Then check the story duration in Blaze.</td></tr>
+<tr><td>Let a failed clip be tried once more</td><td>Fix the cause, then <code>python3 tools/blaze_poll.py live-retry &lt;clip ID&gt;</code>. The clip must be ON_NITRO again.</td></tr>
+</table></div>
+<p>The desk can always attach by hand and press <strong>Mark attached</strong>; Auto-ID reads Blaze back and notices.</p>
+
+<h2 id="log">10. Reading the log</h2>
+<div class="tw"><table>
+<tr><th>Line</th><th>Meaning</th></tr>
+<tr><td><code>READY ON NITRO</code></td><td>The clip is on Nitro. It names the story it belongs to.</td></tr>
+<tr><td><code>GOING TO ATTACH</code></td><td>The plan, with order, itemId and the exact POST. Ends with <code>DRY RUN</code>, <code>LIVE: sending now</code> or <code>NOT SENT (live blocked: reason)</code>.</td></tr>
+<tr><td><code>| CHECK: ...</code></td><td>Something is unconfirmed: unverified story format, no script item, unknown row, or the story is linked in several shows. Never sent live.</td></tr>
+<tr><td><code>ALREADY IN STORY</code></td><td>The file is already attached there. Nothing to do.</td></tr>
+<tr><td><code>AMBIGUOUS</code></td><td>Two Blaze files carry the ID. The desk chooses.</td></tr>
+<tr><td><code>ATTACHING</code> / <code>ATTACHED</code></td><td>Live: sent, then confirmed by reading the story back (with Blaze’s clip ID).</td></tr>
+<tr><td><code>ATTACH FAILED</code></td><td>Live: Blaze refused, or the read-back did not match. The clip is NEEDS_DESK with the reason on the page.</td></tr>
+<tr><td><code>LIVE HALTED</code></td><td>Too many failures in a row. Delete <code>data/STOP_LIVE</code> after fixing the cause.</td></tr>
+<tr><td><code>PROBLEM: ...</code></td><td>Usually an expired Blaze session cookie. Renew it (section 6).</td></tr>
+</table></div>
+
+<h2 id="open">11. Still open</h2>
+<ul>
+<li>The reply to an expired session, and how long a session lives. The login call is known (<code>POST /sessions</code>, user and password) but the cookies it sets were not in the capture, so the cookie is still renewed by hand.</li>
+<li><code>itemId</code> for Package and Montage stories (Anchor visual, format 21, is confirmed).</li>
+<li>The <code>scriptDur</code> rule for stories that already have script text. For a story whose script time is just its clips, it is set the way the page does; otherwise it is left alone and logged.</li>
+<li>Blaze’s replies to a duplicate attach and to a locked story, and how the media title search matches.</li>
+</ul>
+<p class="lede">Remove staff names, user IDs, session IDs and cookies from anything you send for help.</p>
+</main>
+</body>
+</html>
