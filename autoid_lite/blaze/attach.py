@@ -38,12 +38,12 @@ class AttachMixin:
         key = rkey(r); sibs = [x for x in self.rows if not x.get("deleted") and x.get("blaze_story_id") == story and key and rkey(x) == key]
         if r not in sibs: sibs.insert(0, r)
         row = new or next((x for x in info.get("rows") or [] if x["mos"] == str(m["id"])), None) or {}
-        seen = {str(s) for s in info.get("shows") or []} or None; done = False
+        seen = {str(s) for s in info.get("shows") or []}; done = False                      # an empty or missing show list proves nothing: no sibling is marked on it
         for x in sibs:
             if x["state"] == "ATTACHED": continue
             did, sh = x["display_id"], x["blaze_rundown_id"]
-            if seen is not None and sh not in seen:
-                if self.announce("sharedmiss:" + did, "1"): self.event("SHARED NOT SEEN", "clip %s: its file is in story %s but Blaze does not list show %s (%s) for that story: not marked ATTACHED, the desk checks" % (did, story, sh, (self.names.get(sh) or ("", 0))[0]))
+            if x is not r and sh not in seen:
+                if self.announce("sharedmiss:" + did, "1"): self.event("SHARED NOT SEEN", "clip %s: its file is in story %s but Blaze %s show %s (%s) for that story: not marked ATTACHED, the desk checks" % (did, story, "does not list" if seen else "gave no show list for the story, so cannot confirm", sh, (self.names.get(sh) or ("", 0))[0]))
                 continue
             body = dict(attached_facts(row, m, item_id), display_id=did, blaze_rundown_id=sh, blaze_story_id=story, source=source)
             if source == "blaze_readback": body["media_mode"] = (self.c.when == "media")
@@ -211,16 +211,33 @@ class AttachMixin:
         """Send ONE attach, then read the story back. At most one attempt per clip, ever (the ledger row is written before the call)."""
         did, story, rshow = r["display_id"], r["blaze_story_id"], r["blaze_rundown_id"]; show = show or rshow          # v10.4.0: show = the bulletin that carries the one attach, rshow = this clip ID's own bulletin
         fresh = self.b.story_info(story)                                  # the last look before sending
+        inst = {x for x, _ in fresh["clips"]}
+        for op in self.led.live_opens(story):                              # an earlier unclear attempt whose EXACT file (media object id) is now in the story is settled: it did arrive
+            if op["status"] in ("SENDING", "UNKNOWN") and op["media_id"] in inst: self.led.live_finish(op["display_id"], "SENT", error="seen in the story by a later read (media %s)" % op["media_id"])
         if m["id"] is None or str(m["id"]) in {x for x, _ in fresh["clips"]}: return False
         if fresh["item_id"] != item_id: return say("%s: the story changed while planning (itemId %s -> %s): not sent, will be planned again" % (did, item_id, fresh["item_id"])) and False
-        if not self.led.live_start(did, story, show, m["id"], m["title"]): return False
+        fs = {str(x) for x in fresh.get("shows") or []}
+        if fs and show not in fs: return say("%s: Blaze no longer lists show %s for story %s (it lists %s): not sent, will be planned again" % (did, show, story, ",".join(sorted(fs)))) and False       # v10.4.0: the bulletin chosen to carry the attach lost the story while planning
+        if not self.led.live_start(did, story, show, m["id"], m["title"]):
+            own = self.led.live_of(did); ops = self.led.live_opens(story)
+            if own is not None:                                           # this clip ID has an attempt on record: never repeated; if it ended unclear and the file is still not in the story, the desk is told once (the clock runs from its FIRST send, in the ledger, so a restart does not reset it)
+                age = time.time() - own["sent_at"]
+                if own["status"] in ("SENDING", "UNKNOWN") and age > self.c.unclear_secs and r["state"] in LIVE_STATES:
+                    self.live_fail(r, "an earlier attach attempt ended unclear (%s, %d min ago) and file %s is not in the story. It may still arrive: look at the story in Blaze before attaching by hand, then run live-retry for this clip. Nothing is repeated automatically" % (own["status"], age // 60, m["id"]), "UNKNOWN")
+            elif ops and self.announce("openattempt:" + did, ops[0]["display_id"]): say("%s: clip %s of the same story has an attempt that is not settled (%s): nothing is sent for this story until it is; the next read of the story decides" % (did, ops[0]["display_id"], ops[0]["status"]))
+            return False
         before = {x["id"] for x in fresh["rows"]}
         self.event("ATTACHING", "clip %s -> %s | order=%s itemId=%s | sending to Blaze now" % (did, self.where(r), order, item_id), attach_call(story, show, m, order, item_id))
         try: self.b.attach(story, show, m, order, item_id)
         except SessionExpired as e: self.led.live_finish(did, "UNKNOWN", error=str(e)); raise              # unclear whether it arrived: never repeated; the read-back below the next pass decides
         except BlazeError as e: return self.live_fail(r, "Blaze refused the attach (%s)" % e) and False
         except Exception as e: return self.live_fail(r, "the attach call failed (%s: %s)" % (type(e).__name__, e), "UNKNOWN") and False
-        after = self.b.story_info(story); new = [x for x in after["rows"] if x["id"] not in before]
+        try: after = self.b.story_info(story)
+        except SessionExpired as e: self.led.live_finish(did, "UNKNOWN", error="session expired after the attach: %s" % e); raise            # the attach was sent: never repeated, the next read of the story decides
+        except Exception as e:
+            self.led.live_finish(did, "UNKNOWN", error="read-back failed after the attach: %s" % e)
+            self.event("READ-BACK FAILED", "clip %s: the attach was sent but Blaze did not answer the read-back (%s: %s). It is NOT sent again: the next read of the story decides, check the story if it stays open" % (did, type(e).__name__, e)); return False
+        new = [x for x in after["rows"] if x["id"] not in before]
         if len(new) == 1 and new[0]["mos"] == str(m["id"]) and len(after["rows"]) == len(before) + 1:
             self.led.live_finish(did, "SENT", new[0]["id"]); self.led.seen(did, story, rshow, m["id"], m["title"], 1)
             self.event("ATTACHED", "clip %s is attached to %s (Blaze clip id %s, %d clip(s) in the story now)" % (did, self.where(r), new[0]["id"], len(after["rows"])))

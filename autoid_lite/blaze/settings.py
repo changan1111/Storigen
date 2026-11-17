@@ -11,7 +11,7 @@ from . import envcheck
 class Cfg:
     def __init__(self, env=None):
         e = env if env is not None else os.environ; g = lambda k, d="": (e.get(k) or d).strip(); self.env_seen = envcheck.snapshot(e)      # v9.13.1: what this poller started with (compared with autoid.env while it runs)
-        self.blaze = g("BLAZE_URL", "http://10.1.10.101").rstrip("/"); self.sid = g("BLAZE_SESSION_ID"); self.user = g("BLAZE_USERNAME")
+        self.blaze = g("BLAZE_URL", "http://10.1.10.XXX").rstrip("/"); self.sid = g("BLAZE_SESSION_ID"); self.user = g("BLAZE_USERNAME")
         pw = g("BLAZE_PASSWORD_HASH"); self.pw = urllib.parse.unquote(pw) if "%" in pw else pw       # exactly what the Blaze page sends as `password` (not the typed password); a percent-encoded copy from a capture is accepted
         self.autologin = g("BLAZE_AUTOLOGIN", "1") != "0" and bool(self.pw and self.user)             # log in again by itself when the session has expired
         self.login_gap = max(5, int(g("BLAZE_LOGIN_MIN_SECS", "60"))); self.login_max_fail = max(1, int(g("BLAZE_LOGIN_MAX_FAILS", "3")))   # never hammer a wrong password: Blaze may lock the account
@@ -60,7 +60,7 @@ class Cfg:
         self.live_masters = {x.strip() for x in g("BLAZE_LIVE_MASTER_IDS").split(",") if x.strip()}   # with BLAZE_SHOW_IDS=auto the show IDs change every day, so live is allowed by the show's masterId (the same time slot every day)
         self.live_scriptdur = g("BLAZE_LIVE_SCRIPTDUR", "1") == "1"                                  # after an attach, set the story's script duration to the clips' total, as the Blaze page does
         self.live_confirm = g("BLAZE_LIVE_CONFIRM") == "YES_ATTACH_FOR_REAL"                          # second lock: a typo or half-edited file cannot turn live on
-        self.live_max = max(0, int(g("BLAZE_LIVE_MAX_PER_HOUR", "0"))); self.live_halt_after = max(1, int(g("BLAZE_LIVE_HALT_AFTER", "3")))        # live_max 0 = no hourly limit
+        self.live_max = max(0, int(g("BLAZE_LIVE_MAX_PER_HOUR", "0"))); self.live_halt_after = max(1, int(g("BLAZE_LIVE_HALT_AFTER", "3"))); self.unclear_secs = max(120, int(float(g("BLAZE_UNCLEAR_SECS", "300"))))      # v10.4.0: an attempt that ended unclear is handed to the desk after this long (counted from its first send, kept across restarts), never resent        # live_max 0 = no hourly limit
         # QUICKTEST (v9.7.5): narrow real attaching while BLAZE_ATTACH=live. Nothing set = every followed show. Set a story and/or a show to test on just those; remove the lines to go fully live.
         self.qt_stories = {x.strip() for x in g("QUICKTEST_STORY_ID").split(",") if x.strip()}      # only these Blaze story IDs get a real attach
         self.qt_shows = {x.strip() for x in g("QUICKTEST_SHOW_ID").split(",") if x.strip()}          # only these show IDs ...

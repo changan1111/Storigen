@@ -42,9 +42,16 @@ class Ledger:
     def seen_of(self, display_id): return self.c.execute("SELECT * FROM seen WHERE display_id=?", (display_id,)).fetchall()
     # ---- live attach: one row per clip, written BEFORE the call is sent, so a clip can never be sent twice (a crash leaves the row, and the restart sees it)
     def live_start(self, display_id, story, show, media_id, title, now=None):
-        """True only for the first attempt of this clip ever. A failed or unclear attempt is never repeated unless a person runs live-retry."""
-        cur = self.c.execute("INSERT OR IGNORE INTO live VALUES(?,?,?,?,?,?,?,?,?)", (display_id, str(story), str(show), str(media_id), title, now or time.time(), "SENDING", None, None))
+        """True only for the first attempt of this clip ever, AND only when no attempt in the same story is still open. ONE atomic statement (SQLite holds the write lock for the whole
+        INSERT ... SELECT ... WHERE NOT EXISTS), so two clip IDs of a shared story, the poller and a Quick test, or two processes on the same ledger file can never both win.
+        Open = SENDING (maybe a restart), UNKNOWN (no read-back, expired session), CHECK_FAILED (the story holds an unexpected clip) block ANY file in the story; a settled attempt (SENT), a refused one (FAILED) and an undone one (UNDONE) block only the same file, so a sibling clip ID can never send it again (even if it read the story just before the first POST finished).
+        A failed or unclear attempt is never repeated unless a person runs live-retry."""
+        cur = self.c.execute("INSERT OR IGNORE INTO live SELECT ?,?,?,?,?,?,'SENDING',NULL,NULL WHERE NOT EXISTS (SELECT 1 FROM live WHERE story_id=? AND (status IN ('SENDING','UNKNOWN','CHECK_FAILED') OR (status IN ('SENT','UNDONE','FAILED') AND media_id=?)))",
+                             (display_id, str(story), str(show), str(media_id), title, now or time.time(), str(story), str(media_id)))
         return cur.rowcount == 1
+    def live_opens(self, story):
+        """v10.4.0: the attempts of this story that are not settled (see live_start), oldest first."""
+        return self.c.execute("SELECT * FROM live WHERE story_id=? AND status IN ('SENDING','UNKNOWN','CHECK_FAILED') ORDER BY sent_at", (str(story),)).fetchall()
     def live_finish(self, display_id, status, clip_id=None, error=None):
         self.c.execute("UPDATE live SET status=?, blaze_clip_id=COALESCE(?, blaze_clip_id), error=? WHERE display_id=?", (status, clip_id, error, display_id))
     def live_of(self, display_id): return self.c.execute("SELECT * FROM live WHERE display_id=?", (display_id,)).fetchone()

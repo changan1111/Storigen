@@ -13,13 +13,22 @@
 5. **Read-back crash fixed.** When the desk attached by hand and the story had just been read, the confirm step failed with `KeyError: 'rows'`, so nothing turned ATTACHED. Fixed; a partial read leaves the item for the next full read.
 6. **Newest version everywhere** (only with `BLAZE_VERSION_MODE=auto`): when two versions of a clip are ready for the same story, only the newest is attached; the older one is skipped ("Superseded"). In `desk` mode nothing changes: the desk owns versions above 1.
 
+7. **Hardening found by the edge-case tests.**
+   - A sibling clip ID is marked only when Blaze's story read-back lists its bulletin. An empty or missing show list proves nothing, so no sibling is marked on it (the clip ID being handled is still marked, as before).
+   - Before sending, the last look at the story must still list the bulletin chosen to carry the attach; if Blaze no longer lists it, nothing is sent and the story is planned again.
+   - If the POST succeeded but the read-back fails (timeout) or the session expires right after it, the attempt is recorded as UNKNOWN, never sent again, and the next read of the story marks every clip ID.
+   - **One unsettled attempt per story, claimed atomically.** The ledger claim is a single SQLite statement (`INSERT ... SELECT ... WHERE NOT EXISTS`), so two clip IDs of a shared story, the poller and a Quick test (same code path), or two processes on the same ledger file cannot both win. SENDING, UNKNOWN or CHECK_FAILED block every file in that story; SENT, UNDONE or FAILED block the same file only, so a sibling can never send a file we already sent, even if it read the story just before the first POST finished.
+   - **Unclear attempts are never resent.** Reconciliation keeps reading the story. When the EXACT media object id of the attempt appears, the attempt is settled and every clip ID is marked. A different media object with the same title does not settle it.
+   - **Waiting time.** After `BLAZE_UNCLEAR_SECS` (default 300, minimum 120), counted from the FIRST send as stored in the ledger (a restart does not reset it), and only if a fresh read of the story still does not hold the file, the clip ID is handed to the desk (the registry keeps one state per file, so every bulletin's clip ID shows NEEDS_DESK). The attempt stays recorded, so nothing is resent and siblings stay blocked. If the clip appears later, all clip IDs still turn ATTACHED. Check the story before attaching by hand, then run live-retry for that clip.
+   - The later full read-back (reconcile) still marks a clip ID ATTACHED when its own bulletin lists the story and the story holds the file, as in v9.11.
+
 ## Not changed
 
 Dry mode is still the default and still sends nothing. Quick test attach, BLAZE_LIVE_SHOW_IDS and the Yes box behave as before (a shared story attached through another bulletin is still one attach to one story). No database change, no new setting.
 
 ## Tests
 
-`tests/test_shared_story_attach.py` (10 tests: one POST for a shared story, every clip ID ATTACHED, current / next / latest bulletin, the bulletin's own row order, aired bulletins, a bulletin Blaze does not list, dry-run line, already-in-story, duplicate, the desk read-back without the crash, newest version). Two tests in `tests/test_blaze_poll.py` were changed on purpose: a linked story is now sent once and shown as a note instead of "NOT SENT".
+`tests/test_unknown_attempt_recovery.py` (8 tests: late exposure, never resent, the wait from the first send across a restart, minimum wait, atomic claim with threads and separate processes, two pollers racing, exact media identity) and `tests/test_shared_story_edge_cases.py` (11 tests: empty and missing show list, read-back timeout, the carrier bulletin losing the story, desk attaching at the same moment, Quick test on a sibling of three bulletins, six bulletins with different rows, two Quick tests at once, session expiry right after the POST, restart while SENDING with and without the clip in the story) and `tests/test_shared_story_attach.py` (10 tests: one POST for a shared story, every clip ID ATTACHED, current / next / latest bulletin, the bulletin's own row order, aired bulletins, a bulletin Blaze does not list, dry-run line, already-in-story, duplicate, the desk read-back without the crash, newest version). Two tests in `tests/test_blaze_poll.py` were changed on purpose: a linked story is now sent once and shown as a note instead of "NOT SENT".
 
 ## Upgrade
 
