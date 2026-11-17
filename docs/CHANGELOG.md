@@ -2,6 +2,7 @@
 
 One line per release, newest first. Each link has the full notes. Internal names such as autoid.py and autoid.env were kept on purpose through the Storigen rename.
 
+* [v10.4.0 - a story shared by several bulletins is attached once and every clip ID of it is marked ATTACHED (current / next / latest bulletin); fixes the read-back crash 'rows' and the wrong row order](CHANGES_v1040.md)
 * [v10.3.0 - Ready feed as a table (newest first, search, click a story to open it, Quick test attach on every row)](CHANGES_v1030.md)
 * [v10.2.0 - Ready feed with search, in-page notification and optional chat push when a clip becomes ready](CHANGES_v1020.md)
 * [v10.1.1 - the automatic refresh no longer disturbs the page; Pause refresh](CHANGES_v1011.md)

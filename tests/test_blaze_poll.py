@@ -217,7 +217,7 @@ def test_media_is_searched_by_the_clip_id_not_by_scanning_one_page(env):
 def test_unverified_format_and_linked_story_are_flagged_in_the_line(env):
     s, f, p = env; f.slugs = [slug(20, "PKG X", 1, 23), slug(21, "ANC Y", 2, 20)]; f.linked = {"21": [34500]}; p.cycle(); d = {r["blaze_story_id"]: r["display_id"] for r in clips(s)}
     f.medias = [media(5, d["20"][:14] + "_X.mxf"), media(6, d["21"][:14] + "_Y.mxf")]; p.cycle(); L = watch_lines(p)
-    assert any(d["20"] in x and "not yet verified for story format 23" in x for x in L) and any(d["21"] in x and "linked in shows 34427,34500" in x for x in L)
+    assert any(d["20"] in x and "not yet verified for story format 23" in x for x in L) and any(d["21"] in x and "SHARED story: it sits in shows 34427,34500" in x and "CHECK: story is linked" not in x for x in L)        # v10.4.0: a shared story is a note, not a flag
 
 def test_file_already_in_the_story_is_logged_as_nothing_to_do(env):
     s, f, p = env; f.slugs = [slug(13, "D", 1)]; p.cycle(); did = clips(s)[0]["display_id"]
@@ -283,7 +283,8 @@ def test_live_waits_for_nitro_and_for_the_kill_switch(env, tmp_path):
 def test_live_sends_nothing_for_unverified_formats_linked_stories_or_other_shows(env, tmp_path):
     s, f, p, e = live_env(tmp_path); f.linked = {"21": [34500]}
     ready_clip(s, f, p, 20, "PKG X", 1, 23, 5); ready_clip(s, f, p, 21, "ANC Y", 2, 20, 6); p.cycle()
-    assert not posts(f) and any("not yet verified for story format 23" in x and "NOT SENT" in x for x in watch_lines(p)) and any("linked in shows" in x and "NOT SENT" in x for x in watch_lines(p))
+    assert [x["mosObjectId"] for x in posts(f)] == ["6"] and any("not yet verified for story format 23" in x and "NOT SENT" in x for x in watch_lines(p))      # v10.4.0: the linked (shared) story IS sent, once; only the unverified format waits
+    assert not any("linked in shows" in x and "NOT SENT" in x for x in watch_lines(p))
     assert "BLAZE_LIVE_SHOW_IDS" in p.live_block({"blaze_rundown_id": "99999", "state": "ON_NITRO"}, [])
 
 def test_refused_attach_goes_to_the_desk_and_is_never_repeated(env, tmp_path):

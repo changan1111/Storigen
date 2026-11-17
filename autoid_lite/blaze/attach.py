@@ -1,6 +1,7 @@
 """Poller: plan the attach, the live attach itself, replace/undo of older versions, reconcile against Blaze's read-back."""
 from __future__ import annotations
 from pathlib import Path
+import datetime as dt
 import json
 import time
 from .errors import BlazeError, SessionExpired
@@ -10,6 +11,50 @@ from .util import say
 
 
 class AttachMixin:
+    CURRENT_MIN = 60                     # v10.4.0: a bulletin that started less than this many minutes ago counts as "the current bulletin"
+
+    def carrier(self, story, row_show):
+        """v10.4.0: a Blaze clip belongs to the STORY, not to a bulletin: a story that sits in several bulletins shows the clip in all of them after ONE attach.
+        Which bulletin carries that one attach: the current bulletin when the story is in it, else the next future one, else (everything has aired) the latest one that aired.
+        -> (show id, why). Only followed shows that really hold the story (their row in that show is known) are candidates."""
+        now = dt.datetime.now(dt.timezone.utc); cand = []
+        for sh in self.story_shows.get(story) or []:
+            if sh not in self.c.shows or (sh, story) not in self.posin: continue
+            try: st = dt.datetime.fromisoformat((self.show_meta.get(sh) or {}).get("start"))
+            except (TypeError, ValueError): continue
+            if st.tzinfo is None: st = st.replace(tzinfo=dt.timezone.utc)
+            cand.append((st, sh))
+        if not cand: return row_show, "the row's own bulletin"
+        cand.sort(); past = [c for c in cand if c[0] <= now]; future = [c for c in cand if c[0] > now]
+        if past and (now - past[-1][0]).total_seconds() / 60 < self.CURRENT_MIN: return past[-1][1], "the current bulletin"
+        if future: return future[0][1], "the next bulletin"
+        return past[-1][1], "the latest bulletin (all have aired)"
+
+    def confirm_group(self, r, story, info, m, source, new=None, item_id=None):
+        """v10.4.0: the file sits in the story. Every registry row of that story with the same clip name and version (one clip ID per bulletin that holds the story) is marked ATTACHED,
+        each one only when Blaze's own read-back lists its bulletin among the story's shows. A row whose bulletin is not in that list is left alone and said once."""
+        if source == "blaze_readback" and not self.c.confirm: return False
+        if sum(1 for mos, _ in info.get("clips") or [] if mos == str(m["id"])) != 1: return False      # twice in the story is a DUPLICATE (reconcile says so), not an attach
+        key = rkey(r); sibs = [x for x in self.rows if not x.get("deleted") and x.get("blaze_story_id") == story and key and rkey(x) == key]
+        if r not in sibs: sibs.insert(0, r)
+        row = new or next((x for x in info.get("rows") or [] if x["mos"] == str(m["id"])), None) or {}
+        seen = {str(s) for s in info.get("shows") or []} or None; done = False
+        for x in sibs:
+            if x["state"] == "ATTACHED": continue
+            did, sh = x["display_id"], x["blaze_rundown_id"]
+            if seen is not None and sh not in seen:
+                if self.announce("sharedmiss:" + did, "1"): self.event("SHARED NOT SEEN", "clip %s: its file is in story %s but Blaze does not list show %s (%s) for that story: not marked ATTACHED, the desk checks" % (did, story, sh, (self.names.get(sh) or ("", 0))[0]))
+                continue
+            body = dict(attached_facts(row, m, item_id), display_id=did, blaze_rundown_id=sh, blaze_story_id=story, source=source)
+            if source == "blaze_readback": body["media_mode"] = (self.c.when == "media")
+            try: res = self.a.call("/svc/attach/confirm", body)
+            except Exception as e: say("confirm failed for %s: %s" % (did, e)); continue
+            if res.get("ok"):
+                x["state"] = "ATTACHED"; x["mos_object_id"] = str(m["id"]); done = True
+                if body["item_id"]: x["item_id"] = body["item_id"]
+                if x is not r: self.event("SHARED ATTACHED", "clip %s (show %s %s) is marked ATTACHED: story %s is shared and the file is in it" % (did, sh, (self.names.get(sh) or ("", 0))[0], story))
+        return done
+
     def plan(self):
         """What the tool WOULD attach. Logged only (GOING TO ATTACH ...); every plan is also remembered in the ledger for the daily tool-vs-desk report."""
         qa_all = {r["display_id"]: r for r in self.rows if r.get("qa_state") == "REQUESTED"}      # v9.13: clips whose "Quick test attach" the editor confirmed on the dashboard
@@ -31,16 +76,28 @@ class AttachMixin:
         back = [r for r in rows if r["state"] == "ATTACHED" and not self.led.has_plan(r["display_id"])]       # attached already (by the desk): still record what the tool would have done
         out = []; cand = live + back; self.prefetch_media(cand); looked = [(r,) + self.lookup(r) for r in cand]
         self.prefetch_info([r["blaze_story_id"] for r, st, m in looked if st == "found" and r not in back])
+        latest = {}                                                                                  # v10.4.0: the newest version whose file is ready, per story and clip name: that one is used in every show of the story
+        for r, st, m in looked:
+            k = rkey(r)
+            if st == "found" and k and r not in back: latest[(r["blaze_story_id"], k[0])] = max(latest.get((r["blaze_story_id"], k[0]), 0), k[1])
         for r, st, m in looked:
             did, story, show = r["display_id"], r["blaze_story_id"], r["blaze_rundown_id"]
             if st == "found": self.led.plan(did, story, show, m["id"], m["title"]); self.tell_media(did, m)
             if r in back: continue
+            if r["state"] == "ATTACHED":                                                              # v10.4.0: already marked through the other rows of its shared story in this pass
+                if r.get("qa_state") == "REQUESTED": self.quick_done(r, "SENT", "this story is shared: the clip was attached once for all its bulletins and this clip ID is marked ATTACHED")
+                continue
+            k = rkey(r)
+            if st == "found" and k and self.c.version_mode == "auto" and k[1] < latest.get((story, k[0]), 0):      # in desk mode the desk owns every version above 1: nothing changes there
+                why[did] = wtxt = "Superseded: version %d of this clip is the one used in every show of the story" % latest[(story, k[0])]; self.last[did] = wtxt
+                if r.get("qa_state") == "REQUESTED": self.quick_done(r, "BLOCKED", wtxt)
+                continue
             detail, kind, go, replace = None, None, False, None; qa = did in qa_all; qa_why = None; wtxt = None
             if st == "found":
                 if story not in self.info_cache: continue                              # its details are read next pass (beyond this pass's batch, or Blaze did not answer)
-                info = self.info_cache[story][1]; pos = self.pos.get(story); order = pos + 1 if isinstance(pos, int) else None
+                info = self.info_cache[story][1]; car, car_how = self.carrier(story, show); pos = self.posin.get((car, story)); pos = self.pos.get(story) if pos is None and car == show else pos; order = pos + 1 if isinstance(pos, int) else None
                 idn = self.ident.get(story); have = {x for x, _ in info["clips"]} | ({x["mos"] for x in idn[0]} if idn else set())     # in the story by either reading
-                if str(m["id"]) in have: kind, note = "ALREADY IN STORY", "clip %s: file %s is already in %s: nothing to do" % (did, m["title"], self.where(r)); qa_why = "the file is already in the story: nothing was sent"; wtxt = "The file is already in the story"
+                if str(m["id"]) in have: kind, note = "ALREADY IN STORY", "clip %s: file %s is already in %s: nothing to do" % (did, m["title"], self.where(r)); qa_why = "the file is already in the story: nothing was sent"; wtxt = "The file is already in the story"; self.confirm_group(r, story, info, m, "blaze_readback")
                 else:
                     ver = int(r.get("version") or 1); old = self.older_versions(r, info) if ver > 1 else []
                     if ver > 1 and self.c.version_mode == "desk" and not qa:
@@ -52,7 +109,6 @@ class AttachMixin:
                         if self.fmt.get(story) not in self.c.verified: flags.append("CHECK: itemId rule not yet verified for story format %s" % self.fmt.get(story))
                         if info["item_id"] is None: flags.append("CHECK: no script item found in the story, itemId unknown")
                         if order is None: flags.append("CHECK: story row position unknown")
-                        if len(info["shows"]) > 1: flags.append("CHECK: story is linked in shows %s, using followed show %s" % (",".join(info["shows"]), show))
                         if len(old) > 1: flags.append("CHECK: the story holds %d older versions of this clip (%s): the tool will not choose, remove them by hand" % (len(old), ", ".join(x["id"] for x in old)))
                         sendable = self.c.attach == "live" or qa                                      # v9.13: a confirmed quick test is sent even while BLAZE_ATTACH=dry
                         block = self.live_block(r, flags, qa) if sendable else None; go = sendable and not block; qa_why = block
@@ -60,7 +116,8 @@ class AttachMixin:
                         mode = (("QUICK TEST (confirmed on the dashboard by %s): sending now" % (r.get("qa_by") or "?")) if qa else "LIVE: sending now") if go else ("DRY RUN: nothing sent to Blaze" if not sendable else "NOT SENT (%s blocked: %s)" % ("quick test" if qa else "live", block))
                         note = "clip %s (file %s, media %s, %ds) to %s | order=%s itemId=%s%s | %s" % (
                             did, m["title"], m["id"], (m.get("duration") or 0) // 1000, self.where(r), "?" if order is None else order, info["item_id"] or "?", "".join(" | " + f for f in flags), mode)
-                        detail = ("sending: " if go else "would send: ") + attach_call(story, show, m, order, info["item_id"])
+                        detail = ("sending: " if go else "would send: ") + attach_call(story, car, m, order, info["item_id"])
+                        if len(info["shows"]) > 1: note += " | SHARED story: it sits in shows %s; ONE attach in show %s (%s) shows the clip in all of them, every clip ID of the story is then marked ATTACHED" % (",".join(info["shows"]), car, car_how)
                         if qa and old: note += " | QUICK TEST only ADDS this clip: the older version's clip is not removed (do that by hand)"
                         elif len(old) == 1:
                             replace = old[0]; note += " | REPLACES version %d: Blaze clip %s (%s) is removed AFTER the attach is verified" % (media_key(replace["title"])[1], replace["id"], replace["title"]); detail += "\nthen, only if the read-back is exactly right: DELETE /DataService/stories/%s/clips/%s" % (story, replace["id"])
@@ -76,7 +133,7 @@ class AttachMixin:
             if kind:
                 if self.announce("plan:" + did, key): self.event(kind, note, detail)
                 if go:
-                    ok = self.live_replace(r, m, order, info["item_id"], replace) if replace else self.live_attach(r, m, order, info["item_id"], quick=qa)
+                    ok = self.live_replace(r, m, order, info["item_id"], replace, show=car) if replace else self.live_attach(r, m, order, info["item_id"], show=car, quick=qa)
                     if qa: self.quick_finish(r, ok)
                 elif qa and qa_why: self.quick_done(r, "BLOCKED", qa_why)
             elif self.last.get(did) != note:
@@ -146,13 +203,13 @@ class AttachMixin:
         try: self.b.set_script_dur(story, after["version_id"], a, before["version"]["wpm"]); self.event("DURATION SET", "story %s script duration is now %d s (the clips' total), as the Blaze page does" % (story, a))
         except SessionExpired: raise
         except Exception as e: self.event("DURATION NOT SET", "story %s: Blaze did not accept the duration update (%s): set it in Blaze" % (story, e))
-    def live_attach(self, r, m, order, item_id, duration=True, quick=False):
+    def live_attach(self, r, m, order, item_id, duration=True, quick=False, show=None):
         """v9.13: quick=True is a dashboard "Quick test attach" the editor confirmed: the Blaze client then allows this one story's attach even while BLAZE_ATTACH=dry (see BlazeClient.quick)."""
-        if not quick: return self._live_attach(r, m, order, item_id, duration)
-        with self.b.quick(r["blaze_story_id"]): return self._live_attach(r, m, order, item_id, duration)
-    def _live_attach(self, r, m, order, item_id, duration=True):
+        if not quick: return self._live_attach(r, m, order, item_id, duration, show)
+        with self.b.quick(r["blaze_story_id"]): return self._live_attach(r, m, order, item_id, duration, show)
+    def _live_attach(self, r, m, order, item_id, duration=True, show=None):
         """Send ONE attach, then read the story back. At most one attempt per clip, ever (the ledger row is written before the call)."""
-        did, story, show = r["display_id"], r["blaze_story_id"], r["blaze_rundown_id"]
+        did, story, rshow = r["display_id"], r["blaze_story_id"], r["blaze_rundown_id"]; show = show or rshow          # v10.4.0: show = the bulletin that carries the one attach, rshow = this clip ID's own bulletin
         fresh = self.b.story_info(story)                                  # the last look before sending
         if m["id"] is None or str(m["id"]) in {x for x, _ in fresh["clips"]}: return False
         if fresh["item_id"] != item_id: return say("%s: the story changed while planning (itemId %s -> %s): not sent, will be planned again" % (did, item_id, fresh["item_id"])) and False
@@ -165,24 +222,22 @@ class AttachMixin:
         except Exception as e: return self.live_fail(r, "the attach call failed (%s: %s)" % (type(e).__name__, e), "UNKNOWN") and False
         after = self.b.story_info(story); new = [x for x in after["rows"] if x["id"] not in before]
         if len(new) == 1 and new[0]["mos"] == str(m["id"]) and len(after["rows"]) == len(before) + 1:
-            self.led.live_finish(did, "SENT", new[0]["id"]); self.led.seen(did, story, show, m["id"], m["title"], 1)
+            self.led.live_finish(did, "SENT", new[0]["id"]); self.led.seen(did, story, rshow, m["id"], m["title"], 1)
             self.event("ATTACHED", "clip %s is attached to %s (Blaze clip id %s, %d clip(s) in the story now)" % (did, self.where(r), new[0]["id"], len(after["rows"])))
             if duration: self.live_duration(r, story, fresh, after)
-            try:
-                if self.a.call("/svc/attach/confirm", dict(attached_facts(new[0], m, item_id), display_id=did, blaze_rundown_id=show, blaze_story_id=story, source="blaze_live")).get("ok"): r["state"] = "ATTACHED"
-            except Exception as e: say("confirm failed for %s: %s" % (did, e))
+            self.confirm_group(r, story, after, m, "blaze_live", new=new[0], item_id=item_id)            # v10.4.0: this clip ID and every other clip ID of the shared story
             return True
         else:
             self.live_fail(r, "read-back does not show exactly one new clip with file %s (new clips: %s, %d -> %d clips). Check the story, then use: blaze_poll.py undo %s [clipId]" % (
                 m["id"], ",".join("%s=%s" % (x["id"], x["mos"]) for x in new) or "none", len(before), len(after["rows"]), did), "CHECK_FAILED", ",".join(x["id"] for x in new) or None)
         return False
-    def live_replace(self, r, m, order, item_id, old):
+    def live_replace(self, r, m, order, item_id, old, show=None):
         """BLAZE_VERSION_MODE=auto: version N takes the place of version N-1 in the story, in two calls and in THIS order: (1) the normal live attach of the new clip with its read-back, (2) only when that was verified, the DELETE of the
         older version's clip and a second read-back. Never the other way round: a failed attach must not leave the story without a clip. Each step happens at most once per clip. Whatever goes wrong after step 1 leaves BOTH clips in the story
         (the safe side), says so in the log and alerts the desk."""
         did, story = r["display_id"], r["blaze_story_id"]; orig = self.b.story_info(story)
         if not any(x["id"] == old["id"] and x["mos"] == old["mos"] for x in orig["rows"]): return say("%s: the older version's clip %s is no longer in the story: nothing sent, will be planned again" % (did, old["id"]))
-        if not self.live_attach(r, m, order, item_id, duration=False): return
+        if not self.live_attach(r, m, order, item_id, duration=False, show=show): return
         self.led.put("replace:" + did, "attached; removing clip %s of story %s" % (old["id"], story))
         if Path(self.c.stopfile).exists(): return self.replace_problem(r, old, "the kill switch file %s exists" % self.c.stopfile)
         self.event("REMOVING OLD VERSION", "clip %s is attached; now removing its older version's Blaze clip %s (%s) from story %s" % (did, old["id"], old["title"], story), "DELETE /DataService/stories/%s/clips/%s" % (story, old["id"]))
@@ -221,7 +276,7 @@ class AttachMixin:
                 elif cc is None or prev is None or now - prev[1] >= self.c.full_recon: due.append((prev[1] if prev else 0, show, s))   # layer C: the full read, oldest first
         batch = [(show, s) for _, show, s in sorted(due, key=lambda x: x[0])[: self.c.recon_batch]]            # a bounded batch per pass, so 600+ stories never stall a polling round
         fresh = lambda sid: self.ident.get(sid) is not None and now - self.ident[sid][1] < self.c.ident_secs + self.c.poll
-        results = {s["story_id"]: ("ok", {"clips": [(x["mos"], x["title"]) for x in self.ident[s["story_id"]][0]], "title": None}) for _, s in urgent if fresh(s["story_id"])}   # the identity read is fresh: no request
+        results = {s["story_id"]: ("ok", {"clips": [(x["mos"], x["title"]) for x in self.ident[s["story_id"]][0]], "title": None, "partial": True, "rows": [{"id": x["id"], "mos": x["mos"], "title": x["title"], "dur": x.get("dur"), "item": None} for x in self.ident[s["story_id"]][0]]}) for _, s in urgent if fresh(s["story_id"])}   # v10.4.0: with rows (before, confirm failed with 'rows')   # the identity read is fresh: no request
         def read(item):
             try: return item[1]["story_id"], "ok", self.rt(lambda: self.b.story_info(item[1]["story_id"]))
             except SessionExpired as e: return item[1]["story_id"], "expired", e
@@ -250,14 +305,15 @@ class AttachMixin:
                 self.led.seen(did, s["story_id"], sh, mid, title, cnt); n += 1
                 if self.c.confirm and cnt == 1 and s["story_id"] == r["blaze_story_id"] and (r["state"] != "ATTACHED" or not r.get("item_id") or not r.get("mos_object_id")):
                     try:                                                          # also for a clip that is already ATTACHED but whose item / duration were never recorded (desk attach, or before v9.8): the server only fills the gaps
-                        row = next((x for x in info["rows"] if x["mos"] == str(mid)), None) or {}
+                        row = next((x for x in info.get("rows") or [] if x["mos"] == str(mid)), None) or {}
                         was = r["state"]; res = self.a.call("/svc/attach/confirm", dict(attached_facts(row, {"id": mid}, None), display_id=did, blaze_rundown_id=sh, blaze_story_id=s["story_id"], source="blaze_readback", media_mode=(self.c.when == "media")))
                         if res.get("ok") and was != "ATTACHED": say("%-34s Blaze shows it in story %s: marked ATTACHED" % (did, s["story_id"])); r["state"] = "ATTACHED"
-                        if res.get("ok"): r["mos_object_id"] = str(mid); r["item_id"] = r.get("item_id") or row.get("item") or "-"
+                        if res.get("ok"): r["mos_object_id"] = str(mid); r["item_id"] = r.get("item_id") or row.get("item") or (None if info.get("partial") else "-")          # a partial read does not know the item: the next full read fills it
                     except Exception as e: say("confirm failed for %s: %s" % (did, e))
         live = {s["story_id"] for sl in self.stories.values() for s in sl}                   # forget what is no longer on any followed show, so memory stays flat over weeks
         for d in (self.cc_read, self.clipcount, self.pos, self.fmt, self.ident, self.info_cache):
             for k in [k for k in d if k not in live]: d.pop(k, None)
+        for k in [k for k in self.posin if k[1] not in live]: self.posin.pop(k, None)
         ids = {r["display_id"] for r in self.rows}
         for d in (self.mcache, self.last):
             for k in [k for k in d if k not in ids]: d.pop(k, None)

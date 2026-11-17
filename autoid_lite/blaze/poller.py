@@ -23,6 +23,7 @@ class Poller(MediaMixin, AttachMixin, ReportMixin, ScriptMixin, RunMixin):
         self.names, self.pos, self.last, self.pinged, self.stories, self.rows, self.last_rec, self.skipped = {}, {}, {}, 0.0, {}, [], 0.0, {}
         self.five, self.five_at, self.page_err = None, 0.0, ""
         self.show_meta, self.list_at = {}, 0.0
+        self.posin = {}                                    # v10.4.0: (show, story) -> row in THAT show (a shared story sits at a different row in every bulletin)
         self.store = snap.Store(self.led.c); self.stats = snap.Stats(); self.pool = snap.Fan(c.concurrency); self.fans = {}; self.dl = time.monotonic() + c.deadline; self.lock = threading.Lock(); self.started = time.time(); self.show_day, self.said, self.late_n, self.closed = {}, set(), 0, False
         self.snapv, self.synced, self.synced_at, self.fails, self.next_try, self.last_ok, self.raw = {}, {}, {}, {}, {}, {}, {}      # per show: snapshot, registry sync state, failures, retry time, last good read, raw slug/story counts
         self.info_cache = {}; self.round_fails = []; self.login_at, self.login_fails = 0.0, 0
@@ -145,7 +146,7 @@ class Poller(MediaMixin, AttachMixin, ReportMixin, ScriptMixin, RunMixin):
                 keep = [x for x in sl if not ignored(x["title"], self.c.ignore) and (not self.c.only_formats or x["format"] in self.c.only_formats)]
                 if len(sl) - len(keep) != self.skipped.get(show) and not self.c.auto: self.skipped[show] = len(sl) - len(keep); say("show %s: %d row(s) left out (BLAZE_IGNORE_TITLES / BLAZE_ONLY_FORMAT_IDS)" % (show, self.skipped[show]))
                 self.stories[show] = keep; sname = (self.names.get(show) or ("", 0))[0] or "SHOW " + show
-                for x in keep: self.pos[x["story_id"]] = x["pos"]; self.fmt[x["story_id"]] = x["format"]; self.clipcount[x["story_id"]] = x.get("clips")
+                for x in keep: self.pos[x["story_id"]] = x["pos"]; self.posin[(show, x["story_id"])] = x["pos"]; self.fmt[x["story_id"]] = x["format"]; self.clipcount[x["story_id"]] = x.get("clips")
                 newv = {x["slug_id"]: snap.view(x) for x in keep}
                 if show not in self.snapv: self.snapv[show] = self.store.load_show(show)            # after a restart: what was seen before it
                 prev = self.snapv[show]; ch = snap.diff_show(prev, newv) if prev is not None else []
@@ -250,7 +251,7 @@ class Poller(MediaMixin, AttachMixin, ReportMixin, ScriptMixin, RunMixin):
         self.led.put(key, value); return True
     def where(self, r):
         show = r["blaze_rundown_id"]; name = (self.names.get(show) or ("", 0))[0]
-        return 'story %s "%s" (show %s %s, row %s)' % (r["blaze_story_id"], r.get("slug") or "", show, name, self.pos.get(r["blaze_story_id"], "?"))
+        return 'story %s "%s" (show %s %s, row %s)' % (r["blaze_story_id"], r.get("slug") or "", show, name, self.posin.get((show, r["blaze_story_id"]), self.pos.get(r["blaze_story_id"], "?")))
     def ready(self):
         """A clip reached Nitro (the watcher saw the original leave INBOX and a stable MXF with the same ID arrive): say which story it is for. Once per clip."""
         for r in self.rows:
