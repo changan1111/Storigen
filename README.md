@@ -156,6 +156,47 @@ For installation and operational guidance, refer to:
 - `docs/ARCHITECTURE.md`
 - `docs/CHANGELOG.md` and the version-specific changelogs in `docs/`
 
+## Release history
+
+Release highlights, newest first. Each version links to its full notes.
+
+- [v10.6.1](docs/CHANGES_v1061.md) - Quick test recognizes clips the desk already attached, reports why a clip cannot be marked, and explains verification requirements for story format 22.
+- [v10.6.0](docs/CHANGES_v1060.md) - Multi-clip stories appear together in a Story Media Gallery with per-clip details and previews.
+- [v10.5.0](docs/CHANGES_v1050.md) - Optional filename suffixes add clips (`_Vnn`) or replace the main clip (`_Unn`) without using +Version.
+- [v10.4.0](docs/CHANGES_v1040.md) - Shared stories are attached once and all matching clip IDs are marked attached; read-back handling and row ordering are fixed.
+- [v10.3.0](docs/CHANGES_v1030.md) - Ready feed becomes a searchable table with story navigation and Quick test attach.
+- [v10.2.0](docs/CHANGES_v1020.md) - Adds a searchable Ready feed, in-page notifications, and optional chat webhook notifications.
+- [v10.1.1](docs/CHANGES_v1011.md) - Refresh updates only changed page content and can be paused.
+- [v10.1.0](docs/CHANGES_v1010.md) - Streams low-resolution previews from Nitro without storing them.
+- [v10.0.0](docs/CHANGES_v1000.md) - Introduces the three-pane workspace for stories, scripts, and media.
+- [Three-pane layout](docs/CHANGES_3pane_layout.md) - Documents the pane proportions and a standalone sample dashboard.
+- [v9.16.1](docs/CHANGES_v9161.md) - Keeps bulletin times in a narrow left column on phones.
+- [v9.16.0](docs/CHANGES_v9160.md) - Adds separate bulletin and story panes with a story-details popup.
+- [v9.15.0](docs/CHANGES_v9150.md) - Places bulletin times, selected-bulletin stories, and details in three distinct areas.
+- [v9.14.0](docs/CHANGES_v9140.md) - Adds compact story rows and a details panel with Previous/Next navigation.
+- [v9.13.6](docs/CHANGES_v9136.md) - Keeps Quick test visible and explains when it cannot run.
+- [v9.13.5](docs/CHANGES_v9135.md) - Adds a poller command to inspect a story's script fields.
+- [v9.13.4](docs/CHANGES_v9134.md) - Fixes an empty dashboard caused by missing database columns after an upgrade.
+- [v9.13.2](docs/CHANGES_v9132.md) - Displays Blaze's online and anchor script fields on story cards and in details.
+- [v9.13.1](docs/CHANGES_v9131.md) - Explains attachment status, warns about unapplied configuration edits, and prevents multiple pollers.
+- [v9.13 restructured build](docs/CHANGES_v913_restructure.md) - Restructures the build and database schema without changing behavior, and fixes self-test.
+- [v9.13](docs/CHANGES_v913.md) - Adds Quick test attach to stories with safeguards for readiness and verified formats.
+- [v9.12](docs/CHANGES_v912.md) - Allows running without Playout/Nitro folder mounts by disabling the watcher.
+- [v9.11](docs/CHANGES_v911.md) - Improves shared-story attachment read-back, status logging, date parsing, and media-based confirmation.
+- [v9.8.1](docs/CHANGES_v981.md) - Final Storigen-branded release in the v9.8 series.
+- [v9.8.0](docs/CHANGES_v980.md) - Final NewsFusion-branded release.
+- [v9.7.5](docs/CHANGES_v975.md) - Adds the four-step clip status strip and NewsFusion branding, with review fixes.
+- [v9.7.4](docs/CHANGES_v974.md) - Uses one media list per polling round, distinguishes converting files from ready files, and adds a sign-in page.
+- [v9.7.3](docs/CHANGES_v973.md) - Adds automatic Blaze login and session renewal.
+- [v9.7.2](docs/CHANGES_v972.md) - Uses date-and-story clip names shared by repeated stories; includes v9.7.1.
+- [v9.7.1](docs/CHANGES_v971.md) - Introduces date-and-story clip names shared by repeated stories.
+- [v9.6.0](docs/CHANGES_v95.md) - Merges polling improvements, bounded parallel reads, retry and day controls, dashboard improvements, and new-version handling.
+- [v9.4](docs/CHANGES_v94.md) - Introduces complete-day polling and a paged dashboard.
+- [v9.4 plain ZIP](docs/CHANGES_v94_plain_zip.md) - Documents the plain ZIP build's complete-day polling dashboard.
+- [v9.3](docs/CHANGES_v93.md) - Discovers shows automatically and uses captured Blaze data.
+- [v9.2](docs/CHANGES_v92.md) - Adds the dashboard and reporting page.
+- [v9.1](docs/CHANGES_v91.md) - Improves long-running polling, reconciliation, session reload, alerts, and Windows watcher behavior.
+
 ## Security and access considerations
 
 - Do not share the Blaze session cookie or secret values in chat, screenshots, or source control
