@@ -10,7 +10,8 @@ def test_ui_has_the_four_steps():
 def test_dry_poller_cannot_attach():
     b = pathlib.Path(__file__).resolve().parents[1] / "autoid_lite" / "blaze"; p = "".join((b / f).read_text(encoding="utf-8") for f in ("client.py", "attach.py"))      # the engine moved from tools/blaze_poll.py into the package: scan the same code, in the same order
     assert 'if self.c.attach != "live" and not self.quick_ok(story_id): raise ForbiddenCall' in p and 'if self.c.attach != "live": raise ForbiddenCall' not in p.split("def attach(")[1].split("def delete_clip")[0]      # v9.13: the only way past it is BlazeClient.quick(), used by a confirmed Quick test
-    assert p.count("with self.b.quick(") == 1 and p.count("quick=qa)") == 1, "quick() is entered in one place only: a live_attach of a clip whose Quick test was confirmed"
+    assert p.count("with self.b.quick(") == 1 and p.count("quick=qa)") == 2, "quick() is entered in one place only (live_attach); it is reached only for a clip whose Quick test was confirmed: the plain attach and, since v10.5.0, the replace of a _Un clip"
+    assert 'removing a clip is only allowed with BLAZE_ATTACH=live' in p and p.count("quick=quick, show=show)") == 1, "v10.5.0: the delete of a replace has the same wall as the attach"
 
 def _clip(s):
     s.svc("POST", "/svc/rundowns/sync", {"blaze_rundown_id": "7", "rundown_name": "NOON", "stories": [{"blaze_story_id": "501", "slug": "FLOOD", "title": "Flood"}]})

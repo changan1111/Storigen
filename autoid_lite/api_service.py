@@ -1,6 +1,6 @@
 """Server methods for the feeds (poller, watcher, MOS gateway): story sync, files, media, attach confirmation, quick-attach, status."""
 from __future__ import annotations
-from .ids import check_char
+from .ids import check_char, enc_version, id_format, norm_name, split_suffix
 import datetime as dt, json, time
 from .db import now_iso
 from .common import APP_VERSION, HttpError, STATES, opt
@@ -47,7 +47,9 @@ class ServiceMixin:
         """Match on date + number only (legacy IDs; if a check letter was typed it must be right), or on the whole ID with ?name=DDMMYY_STORY_NAME (case does not matter)."""
         q = r.q
         if q.get("name"):
-            with self.db.tx() as cur: rows = self.name_rows(cur, q["name"])
+            name = self.canon_name(q["name"])
+            with self.db.tx() as cur:
+                rows = self.name_rows(cur, name) or self.auto_versions(cur, name)      # v10.5.0: a _U01 / _V01 file whose clip has no entry yet gets one here (VERSION_SUFFIX=on)
             if not rows: raise HttpError(404, "no such clip id")
             return dict(rows[0], group=[x["display_id"] for x in rows])      # one clip name can belong to several stories: the file event is applied to all of them
         try: d = dt.datetime.strptime(q["day"], "%Y%m%d").date(); seq = int(q["seq"]); ver = int(q.get("version", 1))
@@ -56,6 +58,23 @@ class ServiceMixin:
         with self.db.tx() as cur: row = cur.one("SELECT * FROM clip_ids WHERE day=? AND seq=? AND version=?", (d.isoformat(), seq, ver))
         if not row: raise HttpError(404, "no such clip id")
         return row
+    @staticmethod
+    def canon_name(name):
+        """v10.5.0: 111126_fire_u2 and 111126_FIRE_U02 are one clip name (VERSION_SUFFIX=on); anything else is returned unchanged."""
+        sp = split_suffix(norm_name(name)); return name if not sp else "%s_%s%02d" % sp
+    def auto_versions(self, cur, name):
+        """v10.5.0, VERSION_SUFFIX=on: the file 111126_FIRE_U02.mxf has been seen and no clip of that name exists. When the plain clip 111126_FIRE exists, every story that holds it gets a clip entry for this
+        version (the same stories a +Version for 'this and later shows' would reach), under the same day and number as the plain clip, so the database's own uniqueness stops a second one. Nothing else changes.
+        Returns the new rows, or [] when the name has no suffix, the plain clip is unknown (a typo stays a 404) or the ID format is legacy."""
+        sp = split_suffix(norm_name(name))
+        if not sp or id_format() != "name": return []
+        base, kind, n = sp; ver = enc_version(kind, n); made = []
+        for x in self.name_rows(cur, base):
+            st = cur.one("SELECT slug, deleted FROM stories WHERE id=?", (x["story_id"],))
+            if not st or st["deleted"] or cur.one("SELECT id FROM clip_ids WHERE story_id=? AND version=?", (x["story_id"], ver)): continue
+            made.append(self.new_clip(cur, x["story_id"], st["slug"], dt.date.fromisoformat(x["day"]), x["seq"], ver, name="%s_%s%02d" % (base, kind, n)))
+        if made: self.log(cur, "watcher", "version_auto", {"name_id": made[0]["name_id"], "kind": kind, "stories": len(made), "from_file": True})
+        return made
     def s_files(self, r):
         f = r.body; self.need(f, "display_id", "state")
         if f["state"] not in STATES: raise HttpError(400, "bad state")

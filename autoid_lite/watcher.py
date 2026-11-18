@@ -22,6 +22,7 @@ HOST = socket.gethostname(); BUSY, DONE = "busy", "done"
 # it never copies, moves, archives or quarantines. EXPORTS_DIR = the Playout INBOX folder, INBOX_SUBDIRS = NEWS,PROGRAMS,PROMO,ADS,
 # NITRO_DIR = the Nitro ONAIR folder (read only use). "File disappeared from the inbox" + "finished MXF found on Nitro" = ON_NITRO.
 WATCH_MODE = os.getenv("WATCH_MODE", "observe")
+SUFFIX_ON = os.getenv("VERSION_SUFFIX", "off").strip().lower() in ("on", "1", "yes", "true")      # v10.5.0: _U01 / _V01 at the end of a file name (see docs/CHANGES_v1050.md)
 INBOX_DIRS = [d.strip() for d in os.getenv("INBOX_SUBDIRS", "").split(",") if d.strip()]
 NITRO_EXTS = tuple(e.strip().lower() for e in os.getenv("NITRO_EXTS", ".mxf").split(",") if e.strip())
 NITRO_DEPTH = int(os.getenv("NITRO_SCAN_DEPTH", "3"))            # folder levels below NITRO_DIR to search (ONAIR/<date>/<NEWS>/file = 2)
@@ -94,6 +95,7 @@ def parse_name(name: str):
     if m: return m.group(1), int(m.group(2)), int(v.group(1)) if v else 1, m.group(3)
     if re.match(r"^\d{6}[_ ]+[A-Za-z0-9]", stem):
         nm = re.sub(r"[^A-Z0-9]+", "_", stem.upper()).strip("_"); v = re.search(r"_V(\d+)$", nm)      # spaces, dashes and underscores are the same in a file name
+        if SUFFIX_ON and (u := re.search(r"_([UV])(\d+)$", nm)): return "NAME", nm, (1000 if u.group(1) == "U" else 2000) + int(u.group(2)), None      # v10.5.0: _Un / _Vn (same numbers as ids.enc_version; the watcher is a stand-alone script, it imports nothing from the package)
         return "NAME", nm, int(v.group(1)) if v else 1, None
     return None
 

@@ -4,6 +4,7 @@ import datetime as dt
 import re
 import urllib.error, urllib.parse, urllib.request
 from .errors import BlazeError
+from ..ids import SUF_RE, enc_version, suffix_on
 
 
 def parse_day(text):
@@ -18,18 +19,24 @@ ID_RE = re.compile(r"^(\d{8}_\d{4}[A-Z]?)(?=_|\.|$)", re.I)                  # l
 NAME_RE = re.compile(r"^\d{6}_[A-Z0-9][A-Z0-9_]*$")                        # v9.7: the whole file name without extension is the ID, DDMMYY_STORY_NAME[_N][_Vn]
 VER_RE = re.compile(r"_V(\d+)$", re.I)
 
+def ver_split(stem):
+    """(name without its version ending, version). v10.5.0: with VERSION_SUFFIX=on, _Un and _Vn are two kinds (stored as 1000+n / 2000+n); off: only _Vn, as before."""
+    m = (SUF_RE if suffix_on() else VER_RE).search(stem)
+    if not m: return stem, 1
+    return stem[:m.start()], (enc_version(m.group(1), m.group(2)) if suffix_on() else int(m.group(1)))
+
 
 # ---------------------------------------------------------------- matching
 def media_key(title):
     stem = re.sub(r"\.[A-Za-z0-9]{2,4}$", "", (title or "").strip()); m = ID_RE.match(stem)
     if not m: return name_key(stem)
-    v = VER_RE.search(stem); return (m.group(1).upper(), int(v.group(1)) if v else 1)
+    return (m.group(1).upper(), ver_split(stem)[1])
 
 def name_key(stem):
     """v9.7 IDs match on the whole name (capitals do not matter), the version taken off the end: (BASE_NAME, version)."""
     stem = re.sub(r"[^A-Z0-9]+", "_", (stem or "").upper()).strip("_")           # spaces, dashes and underscores are the same in a file name
     if not NAME_RE.match(stem): return None
-    v = VER_RE.search(stem); return (stem[:v.start()] if v else stem, int(v.group(1)) if v else 1)
+    return ver_split(stem)
 
 def clip_secs(rows):
     """Total whole seconds of the clips in a story, None when one duration is unknown."""

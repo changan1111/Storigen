@@ -5,7 +5,7 @@ import os
 from .. import config
 
 WATCH = ("BLAZE_ATTACH", "BLAZE_ATTACH_WHEN", "BLAZE_SHOW_IDS", "BLAZE_LIVE_SHOW_IDS", "BLAZE_LIVE_MASTER_IDS", "QUICKTEST_STORY_ID", "QUICKTEST_SHOW_ID",
-         "QUICKTEST_SLOT_ID", "BLAZE_VERSION_MODE", "BLAZE_POLL_SECS", "BLAZE_MEDIA_SETTLE_SECS")      # the settings that decide what is attached and when; the session cookie is not here (it is re-read by itself)
+         "QUICKTEST_SLOT_ID", "BLAZE_VERSION_MODE", "VERSION_SUFFIX", "BLAZE_POLL_SECS", "BLAZE_MEDIA_SETTLE_SECS")      # the settings that decide what is attached and when; the session cookie is not here (it is re-read by itself)
 
 
 def snapshot(env=None):

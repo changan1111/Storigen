@@ -149,6 +149,7 @@ class Blaze:
         return self.call("POST", "/DataService/stories/%s/clips/" % story_id, form=attach_body(show, m, order, item_id))
     def delete_clip(self, story_id, clip_id):
         """Undo of an attach: DELETE /stories/<id>/clips/<clipId> -> {"story_status","clip_status","duration","itemId","deletedClipDur"}."""
+        if self.c.attach != "live" and not self.quick_ok(story_id): raise ForbiddenCall("removing a clip is only allowed with BLAZE_ATTACH=live (now %s) or inside a confirmed Quick test" % self.c.attach)      # v10.5.0: like the attach
         return self.call("DELETE", "/DataService/stories/%s/clips/%s" % (story_id, clip_id))
     def story_clips(self, story_id): return self.story_info(story_id)["clips"]
     def story_media_ids(self, story_id): return {m for m, _ in self.story_clips(story_id)}

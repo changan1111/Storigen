@@ -49,6 +49,11 @@
     return c;
   }
   C.forEach(derive);
+  // Story Media Gallery sample: the first story has three clips: the plain clip (BASE), an added clip (_V01) and an update (_U01)
+  C.forEach(c => { c.story_id = c.id; });
+  { const b = C[0]; [[2001, "_V01", "ATTACHED"], [1001, "_U01", "ON_NITRO"]].forEach((x, k) => { const n = C.length + 1; C.push(derive(Object.assign({}, b, { id: n, display_id: b.display_id + x[1], name_id: b.name_id + x[1], version: x[0], state: x[2], story_id: b.story_id, t: ago(40 - k * 10) }))); }); }
+  const siblings = c => C.filter(x => x.story_id === c.story_id);
+  C.forEach(c => { const l = siblings(c); c.story_clips = l.length; c.story_update = l.some(x => x.version > 1000 && x.version < 2000) ? "U01" : null; c.vlabel = c.version > 2000 ? "V" + pad(c.version % 1000) : c.version > 1000 ? "U" + pad(c.version % 1000) : null; });
   const json = (d, s) => new Response(JSON.stringify(d), { status: s || 200, headers: { "Content-Type": "application/json" } });
   const hm = iso => { const d = new Date(iso); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
   const hay = c => [c.slug, c.story_title, c.display_id, c.name_id, c.mos_object_id, c.item_id, c.blaze_story_id, c.slug_id, c.blaze_rundown_id, c.rundown, hm(c.show_start), hm(c.show_start).replace(":", "")].join(" ").toLowerCase();
@@ -75,7 +80,9 @@
       step("attach", c.state === "ATTACHED" ? "Attachment verified" : "Attachment in the story", c.state === "ATTACHED" ? "Attached (desk) · MOS object " + c.mos_object_id + " · item " + c.item_id + " · duration " + c.attach_dur + " s" : "Waiting for the desk (or the live attach) to put the clip in the story", c.state === "ATTACHED" ? ago(20) : null, c.state === "ATTACHED")];
     if (c.error) steps.push(step("problem", "Needs the desk", c.error, null, false, true));
     const keys = ["slug", "story_title", "online_script", "anchor_script", "show_start", "rundown", "blaze_rundown_id", "blaze_story_id", "position", "deleted", "mos_object_id", "item_id", "attach_dur", "blaze_clip_id"], clip = {}; keys.forEach(k => clip[k] = c[k]); clip.script_at = ago(30);
-    return { id: c.id, display_id: c.display_id, name_id: c.name_id, state: c.state, steps, clip, file: f ? { name: f.n, where: f.where, size: 48e6, duration_s: st.nitro ? 41 + c.id * 3 : null } : null };
+    const story_clips = siblings(c).slice().sort((a, b) => (a.version !== 1) - (b.version !== 1) || a.id - b.id).map(x => ({ id: x.id, display_id: x.display_id, name_id: x.name_id, version: x.version, role: x.version === 1 ? "original" : x.version < 2000 ? "update" : "additional", label: x.version === 1 ? "BASE" : x.vlabel,
+      state: x.state, mos_object_id: x.mos_object_id, item_id: x.item_id, attach_dur: x.attach_dur, blaze_clip_id: x.blaze_clip_id, on_nitro: !!x.stages.nitro, duration_s: x.stages.nitro ? 41 + x.id * 3 : null, file: x.stages.nitro ? x.name_id + ".mxf" : null }));
+    return { id: c.id, display_id: c.display_id, name_id: c.name_id, state: c.state, steps, story_clips, clip, file: f ? { name: f.n, where: f.where, size: 48e6, duration_s: st.nitro ? 41 + c.id * 3 : null } : null };
   }
   const EV = [["editor1@station.com", "clip_attached", { clip: "RAIN ALERT COASTAL" }], ["system", "on_nitro", { clip: "FARMERS PROTEST VNR" }], ["system", "on_nitro", { clip: "CITY FLOOD RELIEF" }], ["system", "needs_desk", { clip: "HOSPITAL FIRE DRILL" }], ["editor2@station.com", "marked_attached", { clip: "SCHOOL EXAM RESULTS" }]];
   const clipById = id => C.find(c => c.id === +id);
@@ -100,7 +107,7 @@
     u = String(u); if (u.indexOf("/api/") !== 0) return realFetch(u, o);
     const [path, qs] = u.split("?"), q = new URLSearchParams(qs || ""), post = o && o.method === "POST"; let m;
     if (path === "/api/me") return json({ email: "demo@storigen.local", name: "Demo", role: "admin", perms: ["view", "version", "attach", "events"], valid_upto: null, days_left: null });
-    if (path === "/api/config") return json({ story_url: "sample", version: "10.4.0 sample", link_mode: "story_id", watcher_enabled: true, manual_enabled: false, quick_attach: true, script_labels: ["Online script", "Anchor script"] });
+    if (path === "/api/config") return json({ story_url: "sample", version: "10.6.1 sample", link_mode: "story_id", watcher_enabled: true, manual_enabled: false, quick_attach: true, script_labels: ["Online script", "Anchor script"], version_suffix: true });
     if (path === "/api/status") return json({ problems: [] });
     if (path === "/api/rundowns") return json(SHOWS.map(s => s.name));
     if (path === "/api/feed") return json(feedQuery(q));

@@ -26,7 +26,7 @@ class Poller(MediaMixin, AttachMixin, ReportMixin, ScriptMixin, RunMixin):
         self.posin = {}                                    # v10.4.0: (show, story) -> row in THAT show (a shared story sits at a different row in every bulletin)
         self.store = snap.Store(self.led.c); self.stats = snap.Stats(); self.pool = snap.Fan(c.concurrency); self.fans = {}; self.dl = time.monotonic() + c.deadline; self.lock = threading.Lock(); self.started = time.time(); self.show_day, self.said, self.late_n, self.closed = {}, set(), 0, False
         self.snapv, self.synced, self.synced_at, self.fails, self.next_try, self.last_ok, self.raw = {}, {}, {}, {}, {}, {}, {}      # per show: snapshot, registry sync state, failures, retry time, last good read, raw slug/story counts
-        self.info_cache = {}; self.round_fails = []; self.login_at, self.login_fails = 0.0, 0
+        self.info_cache = {}; self.confirm_why = {}; self.round_fails = []; self.login_at, self.login_fails = 0.0, 0
         self.ident, self.dirty, self.story_shows, self.slow_streak, self.slow_said, self.log_at, self.reg_err = {}, set(), {}, 0, 0.0, 0.0, ""   # story -> (media rows, read time, signal); stories whose attachments changed
         for sh, r in self.store.polls().items():
             if r.get("last_ok"): self.last_ok[sh] = r["last_ok"]

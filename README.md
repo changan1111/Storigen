@@ -1,4 +1,4 @@
-﻿# Auto-ID Linker Lite
+# Auto-ID Linker Lite
 
 Auto-ID Linker Lite is a lightweight Python service that watches media folders, links finished clips to Blaze stories, tracks daily status, and can optionally attach the clip back to Blaze when enabled.
 
@@ -13,6 +13,8 @@ It is designed for broadcast operations teams that need a simple, local workflow
 - Offers a dashboard and reporting pages for operations staff
 - Can optionally attach clips to Blaze stories in live mode
 - Includes a Blaze DataService poller and optional MOS gateway support
+- Optional (`VERSION_SUFFIX=on`): a file ending `_U01` replaces the story's clip, a file ending `_V01` is added next to it; no +Version click (see `docs/CHANGES_v1050.md`)
+- A story with several clips (the plain clip plus `_V01` / `_U01` files) shows them together as one **Story Media Gallery** card in the Media & IDs pane, each with its own Play preview (see `docs/CHANGES_v1060.md`)
 - Keeps the process running with restart supervision and health checks
 
 ## Supported workflow

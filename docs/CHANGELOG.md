@@ -2,6 +2,9 @@
 
 One line per release, newest first. Each link has the full notes. Internal names such as autoid.py and autoid.env were kept on purpose through the Storigen rename.
 
+* [v10.6.1 - a Quick test on a clip the desk already attached marks it ATTACHED instead of "Not sent", and says why when it cannot; story format 22 explained (BLAZE_VERIFIED_FORMATS)](CHANGES_v1061.md)
+* [v10.6.0 - Story Media Gallery: a story with several clips shows them all as one card in the Media & IDs pane, each with MOS, item, role and its own Play preview](CHANGES_v1060.md)
+* [v10.5.0 - more than one clip in a story: a file ending _U01 / _U02 updates (replaces) the clip, _V01 / _V02 adds one next to it, no +Version click (VERSION_SUFFIX=on, off by default)](CHANGES_v1050.md)
 * [v10.4.0 - a story shared by several bulletins is attached once and every clip ID of it is marked ATTACHED (current / next / latest bulletin); fixes the read-back crash 'rows' and the wrong row order](CHANGES_v1040.md)
 * [v10.3.0 - Ready feed as a table (newest first, search, click a story to open it, Quick test attach on every row)](CHANGES_v1030.md)
 * [v10.2.0 - Ready feed with search, in-page notification and optional chat push when a clip becomes ready](CHANGES_v1020.md)
