@@ -13,6 +13,9 @@ It is designed for broadcast operations teams that need a simple, local workflow
 - Offers a dashboard and reporting pages for operations staff
 - Can optionally attach clips to Blaze stories in live mode
 - Includes a Blaze DataService poller and optional MOS gateway support
+- Finds and attaches media across Blaze groups such as NEWS, PROGRAMS, PROMOS and ADS (see `docs/CHANGES_v1093.md`)
+- Filters stories and Ready feed items by creator, assignee and bulletin
+- Updates waiting clip names when a Blaze story is renamed
 - Optional (`VERSION_SUFFIX=on`): a file ending `_U01` replaces the story's clip, a file ending `_V01` is added next to it; no +Version click (see `docs/CHANGES_v1050.md`)
 - A story with several clips (the plain clip plus `_V01` / `_U01` files) shows them together as one **Story Media Gallery** card in the Media & IDs pane, each with its own Play preview (see `docs/CHANGES_v1060.md`)
 - Keeps the process running with restart supervision and health checks
@@ -160,6 +163,11 @@ For installation and operational guidance, refer to:
 
 Release highlights, newest first. Each version links to its full notes.
 
+- [v10.9.3](docs/CHANGES_v1093.md) - Finds and attaches PROGRAMS, PROMOS and ADS media by reading the Blaze media list for each configured group.
+- [v10.9.2](docs/CHANGES_v1092.md) - Keeps a waiting clip when a renamed Blaze story receives a new story ID in the same rundown slug.
+- [v10.9.1](docs/CHANGES_v1091.md) - Updates waiting clip names after a Blaze story rename while keeping the internal clip ID unchanged.
+- [v10.9.0](docs/CHANGES_v1090.md) - Adds creator and assignee details, plus username and bulletin filters.
+- [v10.7.0](docs/CHANGES_v1070.md) - Hardens `_U01` / `_V01` clip handling, skips aired bulletins and adds replacement and added-clip status.
 - [v10.6.1](docs/CHANGES_v1061.md) - Quick test recognizes clips the desk already attached, reports why a clip cannot be marked, and explains verification requirements for story format 22.
 - [v10.6.0](docs/CHANGES_v1060.md) - Multi-clip stories appear together in a Story Media Gallery with per-clip details and previews.
 - [v10.5.0](docs/CHANGES_v1050.md) - Optional filename suffixes add clips (`_Vnn`) or replace the main clip (`_Unn`) without using +Version.
