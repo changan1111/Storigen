@@ -219,3 +219,27 @@ python3 autoid.py run
 ```
 
 Then confirm the dashboard is reachable and the folder/watcher checks are clean before enabling live Blaze attachment.
+
+
+
+Restart Command:
+
+cat > restart_autoid.sh <<'EOF'
+#!/bin/bash
+cd "$(dirname "$0")" || exit 1
+echo "stopping..."
+launchctl bootout gui/$(id -u)/com.autoid.lite 2>/dev/null
+launchctl remove com.autoid.lite 2>/dev/null
+pkill -f blaze_poll.py 2>/dev/null; pkill -f "autoid.py run" 2>/dev/null; pkill -f autoid_lite 2>/dev/null
+sleep 3
+pgrep -f "autoid.py|blaze_poll.py" >/dev/null && { pkill -9 -f "blaze_poll.py"; pkill -9 -f "autoid.py"; sleep 2; }
+pgrep -f "autoid.py|blaze_poll.py" >/dev/null && { echo "STILL RUNNING, not starting:"; pgrep -fl "autoid.py|blaze_poll.py"; exit 1; }
+echo "env overrides (these beat autoid.env, want nothing here):"; env | grep -E "^(BLAZE|QUICKTEST|AUTOID)"
+echo "starting in this Terminal window: keep it open (Ctrl+C stops it)"
+exec python3 autoid.py run
+EOF
+chmod +x restart_autoid.sh 
+
+Run ./restart_autoid.sh, then run python3 tools/blaze_poll.py groups. Confirm one key shows different counts per group.
+Export a small test clip to PROGRAMS, then watch for READY ON NITRO followed by GOING TO ATTACH and ATTACHED within about 2 minutes.
+Repeat for PROMOS and ADS.
