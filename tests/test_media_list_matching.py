@@ -47,7 +47,7 @@ def test_search_mode_is_still_there(env):
     assert bp.Cfg({"BLAZE_SHOW_IDS": "1", "BLAZE_MEDIA_MODE": "SEARCH"}).media_mode == "search" and bp.Cfg({"BLAZE_SHOW_IDS": "1"}).media_mode == "list" and bp.Cfg({"BLAZE_SHOW_IDS": "1", "BLAZE_MEDIA_MODE": "x"}).media_mode == "list"
 
 def test_media_pages_reads_page_after_page_until_the_total_is_in():
-    c = bp.Cfg({"BLAZE_SHOW_IDS": "1"}); b = bp.Blaze(c); pages = {1: [{"id": 1}, {"id": 2}], 2: [{"id": 3}, {"id": 4}], 3: [{"id": 5}]}; asked = []
+    c = bp.Cfg({"BLAZE_SHOW_IDS": "1", "BLAZE_MEDIA_GROUPS": "NONE"}); b = bp.Blaze(c); pages = {1: [{"id": 1}, {"id": 2}], 2: [{"id": 3}, {"id": 4}], 3: [{"id": 5}]}; asked = []
     def get(path, params=None): asked.append(params["pageNo"]); return {"results": {"medias": pages.get(params["pageNo"], []), "totalResults": 5}}
     b.get = get; ms, total, complete = b.media_pages(2, per_page=2, max_pages=5)
     assert [m["id"] for m in ms] == [1, 2, 3, 4, 5] and total == 5 and complete and asked == [1, 2, 3]

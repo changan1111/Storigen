@@ -6,7 +6,8 @@
   python3 tools/blaze_poll.py stats          the last polling cycle's statistics (shows, slugs, stories, failures, timings, changes, stale shows)
   python3 tools/blaze_poll.py once           one pass, printed, then exit (best first test)
   python3 tools/blaze_poll.py show 34427     print what Blaze returns for a rundown (its name and its slugs)
-  python3 tools/blaze_poll.py media [text]   print Blaze's Playout media list for the last BLAZE_MEDIA_DAYS days
+  python3 tools/blaze_poll.py media [text]   print Blaze's media list (every group: NEWS, PROGRAMS, PROMOS, ADS) for the last BLAZE_MEDIA_DAYS days
+  python3 tools/blaze_poll.py groups         which media-list filter field your Blaze accepts for the groups (v10.9.3), and how many files each group has today
   python3 tools/blaze_poll.py report [YYYYMMDD]   tool-vs-desk agreement for a day (also written daily to data/reports/ as CSV)
   python3 tools/blaze_poll.py map            print show ID / slug ID / story ID / clip ID for today (from the Auto-ID registry)
   python3 tools/blaze_poll.py live           live-attach status: switches, kill switch, what was sent in the last hour, last attempts
@@ -62,7 +63,7 @@ def ensure_session(c, b):
 def main(argv=None, _again=False):
     try: sys.stdout.reconfigure(encoding="utf-8", errors="replace"); sys.stderr.reconfigure(encoding="utf-8", errors="replace")      # a Windows console is not UTF-8: story titles in any script must not crash the commands
     except (AttributeError, OSError, ValueError): pass
-    ap = argparse.ArgumentParser(); ap.add_argument("cmd", choices=["run", "once", "show", "media", "probe", "scripts", "map", "report", "summary", "live", "quicktest", "undo", "live-retry", "shows", "stats", "close-day", "open-day"]); ap.add_argument("args", nargs="*"); a = ap.parse_args(argv)
+    ap = argparse.ArgumentParser(); ap.add_argument("cmd", choices=["run", "once", "show", "media", "probe", "scripts", "people", "map", "report", "summary", "live", "quicktest", "undo", "live-retry", "shows", "stats", "close-day", "open-day", "groups"]); ap.add_argument("args", nargs="*"); a = ap.parse_args(argv)
     if a.cmd == "run" and os.environ.get("BLAZE_POLL_NO_LOCK") != "1":          # v9.13.1: one poller at a time (before anything logs in: a second login can replace the first one's session)
         try: plock.acquire(config.data_dir() / "blaze_poll.lock")
         except plock.AlreadyRunning as e: raise SystemExit("blaze_poll is already running (%s). Only one poller may run at a time. Stop the other one first (launchctl unload ~/Library/LaunchAgents/com.autoid.lite.plist, then pkill -f blaze_poll.py) and start again." % e)
@@ -74,9 +75,21 @@ def main(argv=None, _again=False):
             sid = a.args[0] if a.args else (c.shows[0] if c.shows else None) or raise_("give a show id"); dump(b, "/DataService/shows/%s" % sid); dump(b, "/DataService/shows/%s/slugs" % sid)
             print("\nparsed:", json.dumps(b.slugs(sid), ensure_ascii=False)[:1500])
         elif a.cmd == "media":
-            ms = b.media(c.days); txt = (a.args[0].lower() if a.args else "")
+            ms = b.media_pages(c.days, c.media_page, c.media_max_pages)[0]; txt = (a.args[0].lower() if a.args else "")
             for m in ms:
                 if txt in (m.get("title") or "").lower(): print(m["id"], m.get("objGroup"), "%ds" % ((m.get("duration") or 0) // 1000), m.get("modifiedDate"), m.get("status"), m.get("title"), "->", media_key(m.get("title")))
+        elif a.cmd == "groups":
+            d = dt.date.today(); f = lambda x: x.strftime("%d/%m/%Y"); print("Media list of today, per group, for each filter field Blaze might accept (nothing is changed in Blaze):")
+            for key in ([c.media_group_key] + [k for k in ("objGroup", "group", "objgroup", "mediaGroup") if k != c.media_group_key]):
+                row = []
+                for g in c.media_groups or ["NEWS", "PROGRAMS", "PROMOS", "ADS"]:
+                    flt = json.dumps({"mosId": "QuickEdge", key: g, "fromDate": f(d), "toDate": f(d)}, separators=(",", ":"))
+                    try:
+                        r = (b.get("/DataService/mosobjects", {"assetsPerPage": 200, "pageNo": 1, "channelId": 1, "filter": flt}) or {}).get("results") or {}; ms = r.get("medias") or []; gs = sorted({m.get("objGroup") for m in ms})
+                        row.append("%s=%s%s" % (g, r.get("totalResults", len(ms)), "" if gs in ([], [g]) else " (mixed: %s -> key ignored)" % "/".join(str(x) for x in gs)))
+                    except Exception as e: row.append("%s=ERROR(%s)" % (g, type(e).__name__))
+                print("  %-10s %s" % (key, "  ".join(row)))
+            print("The right key shows a different count per group and no 'mixed'. Put it in autoid.env as BLAZE_MEDIA_GROUP_KEY=<key> (default objGroup), then restart.")
         elif a.cmd == "probe":
             s = a.args[0]; dump(b, "/DataService/stories/%s" % s); dump(b, "/DataService/stories/%s/versions" % s); dump(b, "/DataService/stories/%s/complete/" % s)
             dump(b, "/DataService/stories/%s/clips/" % s)
@@ -87,6 +100,14 @@ def main(argv=None, _again=False):
                 for it in v.get("items") or []: print("version[%d] item %s: keys=%s  text1=%d chars  text2=%d chars" % (vi, it.get("id"), sorted(it), len(it.get("text1") or ""), len(it.get("text2") or "")))
             print("versions: %d   items in versions[0]: %d" % (len(vs), len((vs[0].get("items") or []) if vs else [])))
             t = b.story_info(s)["scripts"]; print("the poller stores: online=%d chars, anchor=%d chars" % (len(t["online"]), len(t["anchor"])))
+        elif a.cmd == "people":      # v10.9.0: who created the story and who it is assigned to, as the poller reads it. Prints every field of the story that looks like a user, so a different field name is easy to find
+            from autoid_lite.blaze import people as pe
+            s = a.args[0]; raw = (b.get("/DataService/stories/%s/complete/" % s) or {}).get("storyComplete") or {}; vs = raw.get("versions") or []; v0 = vs[0] if vs and isinstance(vs[0], dict) else {}
+            looks = lambda k: any(w in k.lower() for w in ("user", "creat", "assign", "owner", "author", "by", "editor", "reporter"))
+            for where, src in (("story", raw), ("versions[0]", v0)):
+                for k in sorted(src):
+                    if looks(k): print("%-12s %-22s = %r%s" % (where, k, src[k], ("   -> " + str(pe.username((src[k] or {}).get("id") if isinstance(src[k], dict) else src[k]))) if isinstance(src[k], (int, dict, str)) and pe.username((src[k] or {}).get("id") if isinstance(src[k], dict) else src[k]) else ""))
+            print("story fields:", sorted(raw)); print("the poller stores:", pe.people_of(raw))
         elif a.cmd == "map":
             rows = AutoId(c).call("/svc/clips"); print("%-8s %-9s %-9s %-4s %-30s %s" % ("show", "slug", "story", "pos", "clip ID", "title"))
             for r in rows: print("%-8s %-9s %-9s %-4s %-30s %s" % (r["blaze_rundown_id"], r.get("slug_id") or "-", r["blaze_story_id"], r.get("position") or "-", r["display_id"], r["slug"]))
@@ -125,7 +146,7 @@ def main(argv=None, _again=False):
         elif a.cmd == "once": p = Poller(c); plans = p.cycle(); say("stories synced; %d clip(s) checked" % len(plans))
         else: Poller(c).run()
     except SessionExpired as e:
-        if not _again and c.autologin and a.cmd in ("show", "media", "probe", "scripts", "map", "shows"):          # a read-only one-off command with an expired cookie: log in and run it once more (never for commands that can write)
+        if not _again and c.autologin and a.cmd in ("show", "media", "probe", "scripts", "people", "map", "shows"):          # a read-only one-off command with an expired cookie: log in and run it once more (never for commands that can write)
             try: saved = c.use_session(b.login()); say("logged in to Blaze again%s" % (" (saved in autoid.env)" if saved else "")); return main(argv, _again=True)
             except LoginFailed as le: raise SystemExit("PROBLEM: %s; %s" % (e, le))
         raise SystemExit("PROBLEM: %s" % e)

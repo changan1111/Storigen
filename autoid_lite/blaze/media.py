@@ -32,7 +32,7 @@ class MediaMixin:
             if kind == "err":
                 if not self.list_err: say("media list could not be read (%s: %s): searching clip by clip until it works again" % (type(val).__name__, val))
                 self.list_err = True; return None
-            medias, total, complete = val
+            medias, total, complete = val; self.say_groups()
             if self.list_err: say("media list readable again"); self.list_err = False
             if not complete and not self.list_partial: say("WARNING: Blaze has %s files in the last %d day(s) but only %d were read (BLAZE_MEDIA_MAX_PAGES x BLAZE_MEDIA_PAGE): clips not among them are searched by title" % (total, self.c.days, len(medias)))
             self.list_partial = not complete; self.mlist = (now, index_media(medias), complete)
@@ -43,6 +43,14 @@ class MediaMixin:
             if st == "missing" and not complete: rest.append(r); continue            # may be beyond the part of the list that was read: ask Blaze by title
             self.mcache[r["display_id"]] = (now, st, m)
         return rest
+    def say_groups(self):
+        """v10.9.3: one line when what the group lists give changes (and a plain warning when Blaze does not know the group filter or a group cannot be read)."""
+        info = getattr(self.b, "group_info", {}) or {}
+        line = ", ".join("%s %s" % (g, ("%d files" % v["files"]) if v["state"] == "ok" else v["state"].upper()) for g, v in info.items())
+        if line and line != getattr(self, "_group_line", None):
+            self._group_line = line; say("media list by group: " + line)
+            bad = [g for g, v in info.items() if v["state"] in ("ignored", "off")]
+            if bad: say("WARNING: group list(s) %s not used: Blaze does not accept the filter field %r (BLAZE_MEDIA_GROUP_KEY) or it fails. Run: python3 tools/blaze_poll.py groups" % (",".join(bad), self.c.media_group_key))
     def search_media(self, rows):
         """The v9.7.3 way (BLAZE_MEDIA_MODE=search, and the fallback of list mode): search Blaze's media list by title for the clips that are due, in parallel and in a bounded batch, so 600+ clips never turn one round into a long queue of single requests.
         Clips whose export the watcher has seen are searched every BLAZE_MEDIA_RETRY_SECS; clips with no export seen yet, every BLAZE_MEDIA_WAIT_SECS, oldest first, BLAZE_MEDIA_BATCH per pass."""

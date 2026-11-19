@@ -161,6 +161,9 @@ class AttachMixin:
                 if self.announce("plan:" + did, key): self.event(kind, note, detail)
                 if go:
                     ok = self.live_replace(r, m, order, info["item_id"], replace, show=car, quick=qa) if replace else self.live_attach(r, m, order, info["item_id"], show=car, quick=qa)
+                    if ok and not replace and suffix_on() and kind_of(ver) == "V" and info["rows"]:         # v10.7.0: an added clip (_Vn) went in: the story now holds more than one clip, say so
+                        msg = "story %s now holds %d clips: %s (%s) was ADDED beside the clip(s) already there, nothing was removed" % (story, len(info["rows"]) + 1, did, m["title"])
+                        self.event("MULTIPLE CLIPS", msg); self.a.alert("Multiple clips: " + msg)
                     if qa: self.quick_finish(r, ok)
                 elif qa and qa_why: self.quick_done(r, "BLOCKED", qa_why)
             elif self.last.get(did) != note:
@@ -295,6 +298,11 @@ class AttachMixin:
         if not (gone and has_new and len(final["rows"]) == len(orig["rows"])):
             return self.replace_problem(r, old, "the read-back after the delete is not as expected (older clip gone: %s, new file present: %s, %d clip(s) before, %d now)" % (gone, has_new, len(orig["rows"]), len(final["rows"])))
         self.led.put("replace:" + did, "done"); self.event("REPLACED", "clip %s replaced the older version's Blaze clip %s in story %s (%d clip(s) in the story now). Blaze said: %s" % (did, old["id"], story, len(final["rows"]), json.dumps(rep)))
+        older_ids = [x["display_id"] for x in self.rows if x.get("blaze_story_id") == story and x["display_id"] != did and rkey(x) == media_key(old["title"])]      # v10.7.0: the older clip's IDs (one per bulletin of the story) are marked replaced on the dashboard
+        if older_ids:
+            try: self.a.call("/svc/replaced", {"display_id": did, "replaced": older_ids})
+            except Exception as e: say("%s: could not mark %s as replaced on the dashboard: %s" % (did, ",".join(older_ids), e))
+        self.a.alert("UPDATED: clip %s (%s) replaced %s in story %s" % (did, m["title"], old["title"], story))
         if not self.c.live_scriptdur: return
         b, a = clip_secs(orig["rows"]), clip_secs(final["rows"])
         if None in (a, b) or not final["version_id"]: return self.event("DURATION NOT SET", "story %s: clip durations or the version are not known: check the story duration in Blaze" % story)

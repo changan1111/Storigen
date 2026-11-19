@@ -59,7 +59,7 @@ const where = n => { let e = n.nodeType === 1 ? n : n.parentElement; while (e &&
   q$("#feedbtn").click(); await sleep(TICK * 3); const fr = () => [...d.querySelectorAll("#flist tr.fi")];
   ok(!q$("#feed").classList.contains("hide") && fr().length > 3, "the feed opens and lists " + fr().length + " clips");
   const heads = [...d.querySelectorAll("#flist table thead th")].map(x => x.textContent.replace(/ ▼/, ""));
-  ok(!!q$("#flist table tbody") && ["Ready at", "Status", "Story", "Clip ID", "Blaze story ID", "MOS object ID", "Media", "Bulletin", "Quick test"].every((h, i) => heads[i] === h), "the feed is an HTML table with the columns: " + heads.join(" | "));
+  ok(!!q$("#flist table tbody") && ["Ready at", "Status", "Story", "Clip ID", "Blaze story ID", "MOS object ID", "Media", "Bulletin", "Created by", "Assigned to", "Quick test"].every((h, i) => heads[i] === h), "the feed is an HTML table with the columns: " + heads.join(" | "));
   const r0 = fr()[0]; ok(/Ready to attach|Attached/.test(cell(r0, 1)) && cell(r0, 2).length > 0 && /\S/.test(cell(r0, 3)) && /^\d+$/.test(cell(r0, 4)) && /^\d+$/.test(cell(r0, 5)) && /\.mxf$/.test(cell(r0, 6)) && cell(r0, 7).length > 0 && /^\d\d:\d\d:\d\d$/.test(cell(r0, 0)), "each row has time, status, story, clip ID, Blaze story ID, MOS object ID, media and bulletin: " + [...r0.children].map(x => x.textContent).join(" | "));
   const times = lastFeed.map(i => i.ready_at); ok(times.length > 3 && times.every((t, i) => i === 0 || times[i - 1] >= t) && fr().map(r => cell(r, 2)).join("|") === lastFeed.map(i => i.story).join("|"), "newest first: the rows follow the ready time, latest on top");
   const mos = cell(fr()[0], 5); q$("#fq").value = mos; q$("#fq").dispatchEvent(new w.Event("input")); await sleep(900);

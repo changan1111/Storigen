@@ -42,6 +42,8 @@ class Cfg:
         self.sync_secs = max(30, int(g("BLAZE_SYNC_FULL_SECS", "300")))            # the registry is re-sent a show's stories at least this often even when nothing changed
         self.media_mode = g("BLAZE_MEDIA_MODE", "list").lower(); self.media_mode = self.media_mode if self.media_mode in ("list", "search") else "list"      # list (v9.7.4): read the day's media list once per round and match every clip in code; search: one title search per clip (v9.7.3 and older)
         self.media_page = max(10, int(g("BLAZE_MEDIA_PAGE", "200"))); self.media_max_pages = max(1, int(g("BLAZE_MEDIA_MAX_PAGES", "5")))                 # list mode: files per request, and at most this many requests per round (200 x 5 = the newest 1000 files)
+        self.media_groups = [x.strip().upper() for x in g("BLAZE_MEDIA_GROUPS", "NEWS,PROGRAMS,PROMOS,ADS").split(",") if x.strip() and x.strip().upper() not in ("NONE", "OFF", "0")]   # v10.9.3: the media list is also read once per group (NONE = only the plain list, as before 10.9.3)
+        self.media_group_key = g("BLAZE_MEDIA_GROUP_KEY", "objGroup").strip() or "objGroup"                                              # the media-list filter field that names the group (python3 tools/blaze_poll.py groups finds the one your Blaze accepts)
         self.settle = int(g("BLAZE_MEDIA_SETTLE_SECS", "60")); self.attach = g("BLAZE_ATTACH", "dry").lower()
         self.when = g("BLAZE_ATTACH_WHEN", "media").lower()          # media = Blaze's media list is enough; watcher = also wait for ON_NITRO
         self.allow_empty = g("BLAZE_ALLOW_EMPTY") == "1"

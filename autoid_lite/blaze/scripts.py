@@ -20,7 +20,7 @@ class ScriptMixin:
         due = sorted((s for s in sids if now - seen.get(s, 0) >= c.script_secs), key=lambda s: seen.get(s, 0))[: c.script_batch]
         if not due: return 0
         def one(sid):
-            try: return sid, "ok", self.rt(lambda: self.b.story_info(sid)["scripts"])
+            try: return sid, "ok", self.rt(lambda: (lambda i: dict(i["scripts"], people=i.get("people") or {}))(self.b.story_info(sid)))
             except SessionExpired as e: return sid, "expired", e
             except Exception as e: return sid, "err", e
         got, bad = {}, 0
@@ -28,13 +28,14 @@ class ScriptMixin:
             if kind == "expired": raise val
             if kind == "ok": got[sid] = val
             else: bad += 1
-        send = [{"blaze_story_id": sid, "online": v["online"], "anchor": v["anchor"]} for sid, v in got.items() if self.script_sig.get(sid) != (v["online"], v["anchor"])]
+        sig = lambda v: (v["online"], v["anchor"], tuple(sorted((v.get("people") or {}).items())))      # v10.9.0: who created the story / who it is assigned to travels with the scripts (same read)
+        send = [dict({"blaze_story_id": sid, "online": v["online"], "anchor": v["anchor"]}, **(v.get("people") or {})) for sid, v in got.items() if self.script_sig.get(sid) != sig(v)]
         sent = 0
         for i in range(0, len(send), 50):
             chunk = send[i:i + 50]
             try:
                 self.a.call("/svc/scripts", {"stories": chunk}); sent += len(chunk)
-                for x in chunk: self.script_sig[x["blaze_story_id"]] = (x["online"], x["anchor"])
+                for x in chunk: self.script_sig[x["blaze_story_id"]] = sig(got[x["blaze_story_id"]])
             except Exception as e:                                                       # the registry did not take it: those stories are sent again next round
                 for x in chunk: got.pop(x["blaze_story_id"], None)
                 if "scripts" not in self.said: self.said.add("scripts"); say("could not send story scripts to the registry (%s: %s): they are sent again next round" % (type(e).__name__, e))

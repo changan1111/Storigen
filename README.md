@@ -184,8 +184,8 @@ Release highlights, newest first. Each version links to its full notes.
 - [v9.12](docs/CHANGES_v912.md) - Allows running without Playout/Nitro folder mounts by disabling the watcher.
 - [v9.11](docs/CHANGES_v911.md) - Improves shared-story attachment read-back, status logging, date parsing, and media-based confirmation.
 - [v9.8.1](docs/CHANGES_v981.md) - Final Storigen-branded release in the v9.8 series.
-- [v9.8.0](docs/CHANGES_v980.md) - Final NewsFusion-branded release.
-- [v9.7.5](docs/CHANGES_v975.md) - Adds the four-step clip status strip and NewsFusion branding, with review fixes.
+- [v9.8.0](docs/CHANGES_v980.md) - Final release under the earlier product name.
+- [v9.7.5](docs/CHANGES_v975.md) - Adds the four-step clip status strip and the earlier product branding, with review fixes.
 - [v9.7.4](docs/CHANGES_v974.md) - Uses one media list per polling round, distinguishes converting files from ready files, and adds a sign-in page.
 - [v9.7.3](docs/CHANGES_v973.md) - Adds automatic Blaze login and session renewal.
 - [v9.7.2](docs/CHANGES_v972.md) - Uses date-and-story clip names shared by repeated stories; includes v9.7.1.

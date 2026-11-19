@@ -30,7 +30,7 @@ class App(ServiceMixin, AuthMixin, DashboardMixin):
             ("POST", "/svc/stories", self.s_story, "svc"), ("POST", "/svc/rundowns/sync", self.s_sync, "svc"),
             ("POST", "/svc/stories/rename", self.s_rename, "svc"), ("POST", "/svc/stories/delete", self.s_delete, "svc"),
             ("GET", "/svc/match", self.s_match, "svc"), ("POST", "/svc/files", self.s_files, "svc"), ("POST", "/svc/heartbeat", self.s_heartbeat, "svc"), ("POST", "/svc/alert", self.s_alert, "svc"),
-            ("POST", "/svc/attach/confirm", self.s_confirm, "svc"), ("POST", "/svc/media", self.s_media, "svc"), ("POST", "/svc/quickattach/result", self.s_qa_result, "svc"), ("POST", "/svc/why", self.s_why, "svc"), ("POST", "/svc/scripts", self.s_scripts, "svc"), ("GET", "/svc/status", self.s_status, "svc"), ("GET", "/svc/clips", self.s_clips, "svc"),
+            ("POST", "/svc/attach/confirm", self.s_confirm, "svc"), ("POST", "/svc/media", self.s_media, "svc"), ("POST", "/svc/replaced", self.s_replaced, "svc"), ("POST", "/svc/quickattach/result", self.s_qa_result, "svc"), ("POST", "/svc/why", self.s_why, "svc"), ("POST", "/svc/scripts", self.s_scripts, "svc"), ("GET", "/svc/status", self.s_status, "svc"), ("GET", "/svc/clips", self.s_clips, "svc"),
             ("POST", "/api/login", self.a_login, None), ("POST", "/api/logout", self.a_logout, None),
             ("GET", "/api/me", self.a_me, "view"), ("GET", "/api/config", self.a_config, "view"), ("GET", "/api/status", self.a_status, "view"),
             ("GET", "/api/clips", self.a_clips, "view"), ("GET", "/api/feed", self.a_feed, "view"), ("GET", "/api/rundowns", self.a_rundowns, "view"), ("POST", "/api/manual", self.a_manual, "create"),
@@ -108,10 +108,39 @@ class App(ServiceMixin, AuthMixin, DashboardMixin):
     def hold_one(self, cur, did, why):
         if cur.x("UPDATE clip_ids SET state='NEEDS_DESK', attach_error=? WHERE display_id=? AND state IN ('ON_NITRO','ATTACH_SUBMITTED','NEEDS_DESK')", (removed_message(why), did)):
             self.alert("%s: its story is no longer in the rundown (%s). Desk: check Blaze before attaching." % (did, why))
-    def upsert_story_row(self, cur, rid, story_id, slug, slug_id=None, pos=None, story_title=None):
-        """Create or refresh one story. -> (first clip, created, restored)."""
-        row = cur.one("SELECT id, deleted FROM stories WHERE rundown_id=? AND blaze_story_id=?", (rid, story_id))
+    def rename_clips(self, cur, sid, story_key, old_slug, new_slug, notes=None, old_key=None):
+        """v10.9.1: a story was renamed in Blaze (same Blaze story ID, new slug title). Its clip NAME (name_id, DDMMYY_STORY_NAME[_Vn] / [_Un]) was made from the old title and never followed it, so the desk kept being told the OLD name.
+        Every clip of the story that is still WAITING_FOR_CLIP (no file seen, nothing sent) gets the name of the new title, its _V / _U ending kept. A clip whose file is already on its way, on Nitro or attached keeps its name: the file carries it.
+        display_id (the internal ID) never changes. The old name is remembered so that a file still exported under it gets a clear answer. Returns the list of (old name, new name)."""
+        if id_format() != "name" or not (new_slug or "").strip(): return []
+        out = []
+        for c in cur.q("SELECT id, day, state, name_id FROM clip_ids WHERE story_id=? ORDER BY id", (sid,)):
+            if not c["name_id"]: continue
+            try: day = dt.date.fromisoformat(c["day"])
+            except (TypeError, ValueError): continue
+            ob, nb = name_id(day, old_slug, old_key or story_key), name_id(day, new_slug, story_key)
+            if ob.upper() == nb.upper(): continue                                           # the title changed but the file-safe name is the same (case, punctuation)
+            if c["state"] != "WAITING_FOR_CLIP":
+                if notes is not None: notes.append({"kept": c["name_id"], "state": c["state"]})
+                continue
+            if not c["name_id"].upper().startswith(ob.upper()): continue                    # not made from the old title (typed / imported): leave it alone
+            new = nb + c["name_id"][len(ob):]
+            cur.x("UPDATE clip_ids SET name_id=? WHERE id=?", (new, c["id"]))
+            cur.x("INSERT OR IGNORE INTO clip_old_names(clip_id, name, changed_at) VALUES(?,?,?)", (c["id"], norm_name(c["name_id"]), now_iso()))
+            out.append((c["name_id"], new))
+        if out:
+            self.log(cur, "mos", "story_renamed", {"blaze_story_id": story_key, "from": old_slug, "to": new_slug, "clips": [{"from": a, "to": b} for a, b in out]})
+            if notes is not None: notes.append({"renamed": out, "from": old_slug, "to": new_slug})
+        return out
+    @staticmethod
+    def old_name_hint(cur, key):
+        """v10.9.1: a clip name that belongs to a story's earlier title -> (old name, current name) or None."""
+        return cur.one("SELECT o.name AS old, COALESCE(c.name_id, c.display_id) AS cur FROM clip_old_names o JOIN clip_ids c ON c.id=o.clip_id WHERE o.name=? ORDER BY o.changed_at DESC LIMIT 1", (norm_name(key),))
+    def upsert_story_row(self, cur, rid, story_id, slug, slug_id=None, pos=None, story_title=None, notes=None, old_key=None):
+        """Create or refresh one story. -> (first clip, created, restored). `notes` (a list, optional) collects what the caller should tell the desk after the transaction (v10.9.1: renames)."""
+        row = cur.one("SELECT id, deleted, slug FROM stories WHERE rundown_id=? AND blaze_story_id=?", (rid, story_id))
         if row:
+            if slug and row["slug"] and slug.strip() != row["slug"].strip(): self.rename_clips(cur, row["id"], story_id, row["slug"], slug, notes, old_key)      # v10.9.1: the story was renamed in Blaze
             cur.x("UPDATE stories SET slug=COALESCE(NULLIF(?,''),slug), slug_id=COALESCE(?,slug_id), position=COALESCE(?,position), story_title=COALESCE(NULLIF(?,''),story_title), last_seen_at=?, deleted=0, deleted_at=NULL, deleted_reason=NULL WHERE id=?", (slug, slug_id, pos, story_title, now_iso(), row["id"]))
             if row["deleted"]:
                 cur.x("UPDATE clip_ids SET attach_error=? WHERE story_id=? AND state='NEEDS_DESK' AND attach_error LIKE ?",

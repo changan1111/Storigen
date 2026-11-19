@@ -95,7 +95,11 @@ def test_1050_11_the_clip_list_tells_the_page_which_clip_it_is_and_how_many_the_
     c = srv.call("POST", "/api/manual", {"rundown": "R", "story": "Fire"})[1]; n = c["name_id"]
     for x in ("_V01", "_U01", "_U02"): assert srv.svc("GET", "/svc/match?name=" + n + x)[0] == 200
     rows = {x["name_id"]: x for x in srv.call("GET", "/api/clips")[1]["clips"]}
-    assert rows[n]["story_clips"] == 4 and rows[n]["vlabel"] is None and rows[n]["story_update"] == "U02" and rows[n + "_U02"]["vlabel"] == "U02" and rows[n + "_V01"]["vlabel"] == "V01"
+    assert rows[n]["story_clips"] == 0 and rows[n]["vlabel"] is None and rows[n]["story_update"] == "U02" and rows[n + "_U02"]["vlabel"] == "U02" and rows[n + "_V01"]["vlabel"] == "V01"      # v10.7.0: no clip is attached yet, so none is "in the story"
+    with srv.app.db.tx() as cur: cur.x("UPDATE clip_ids SET state='ATTACHED'")
+    rows = {x["name_id"]: x for x in srv.call("GET", "/api/clips")[1]["clips"]}; assert rows[n]["story_clips"] == 4
+    assert srv.svc("POST", "/svc/replaced", {"display_id": rows[n + "_U01"]["display_id"], "replaced": [rows[n]["display_id"]]})[1]["marked"] == 1
+    rows = {x["name_id"]: x for x in srv.call("GET", "/api/clips")[1]["clips"]}; assert rows[n]["story_clips"] == 3 and rows[n]["replaced_label"] == "U01" and rows[n + "_V01"]["replaced_label"] is None
 
 def quick_env(tmp_path, monkeypatch):
     monkeypatch.setenv("ID_FORMAT", "name"); monkeypatch.setenv("CHECK_CHAR", "1"); monkeypatch.setenv("VERSION_SUFFIX", "on")

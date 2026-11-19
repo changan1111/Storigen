@@ -2,6 +2,11 @@
 
 One line per release, newest first. Each link has the full notes. Internal names such as autoid.py and autoid.env were kept on purpose through the Storigen rename.
 
+* [v10.9.3 - PROGRAMS, PROMOS and ADS files are found and attached: the media list is read once per group (BLAZE_MEDIA_GROUPS), a Blaze that does not know the filter is detected, new `blaze_poll.py groups` command](CHANGES_v1093.md)
+* [v10.9.2 - a story renamed in Blaze (new story ID in the same slug) is updated in place instead of struck out; its waiting clip keeps its ID and takes the new name](CHANGES_v1092.md)
+* [v10.9.1 - a story renamed in Blaze takes its clip name with it (clips still waiting for a file get the new name; the old name is refused with the reason; internal ID unchanged)](CHANGES_v1091.md)
+* [v10.9.0 - created by / assigned to on every story (dashboard and Ready feed), username filter on the dashboard and the feed, bulletin filter on the feed](CHANGES_v1090.md)
+* [v10.7.0 - hardening of _U01 / _V01: only the next number makes a clip ID, aired bulletins are skipped, the desk is told (alerts, REPLACED badge, Ready feed), exact clip count, chronological order](CHANGES_v1070.md)
 * [v10.6.1 - a Quick test on a clip the desk already attached marks it ATTACHED instead of "Not sent", and says why when it cannot; story format 22 explained (BLAZE_VERIFIED_FORMATS)](CHANGES_v1061.md)
 * [v10.6.0 - Story Media Gallery: a story with several clips shows them all as one card in the Media & IDs pane, each with MOS, item, role and its own Play preview](CHANGES_v1060.md)
 * [v10.5.0 - more than one clip in a story: a file ending _U01 / _U02 updates (replaces) the clip, _V01 / _V02 adds one next to it, no +Version click (VERSION_SUFFIX=on, off by default)](CHANGES_v1050.md)

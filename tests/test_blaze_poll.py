@@ -11,7 +11,7 @@ class Fake:
     def __init__(self):
         self.slugs, self.medias, self.story_clips, self.log, self.expired, self.linked = [], [], {}, [], False, {}
         self.show_list, self.slugs_by_show, self.puts, self.script_dur, self.clip_dur, self.obj_ids = [], {}, [], {}, {}, {}
-        self.story_titles, self.active, self.max_active, self.glock = {}, 0, 0, threading.Lock(); self.story_items = {}      # story ID -> the items of versions[0] (with text1 / text2) when a test wants its own
+        self.story_titles, self.active, self.max_active, self.glock = {}, 0, 0, threading.Lock(); self.story_items = {}; self.story_extra = {}      # story ID -> extra storyComplete fields (createdBy, assignedTo ...) when a test wants them; story ID -> the items of versions[0] (with text1 / text2) when a test wants its own
         self.fail_shows, self.hang_shows, self.hang_secs, self.delay, self.expired_404, self.ident_calls = set(), set(), 0.0, 0.0, False, []     # failure, timeout and latency injection
         self.forms, self.post_mode = [], "ok"; self.logins, self.login_mode, self.cookies, self.new_sid = [], "ok", [], "NEWSID"; self.media_total, self.fail_list = None, False          # post_mode: ok | refuse (400) | noop (201 but nothing added) | double (adds the clip twice)
         outer = self
@@ -65,10 +65,18 @@ class Fake:
                 if p.startswith("/DataService/shows/"): return self.reply({"shows": {"id": 34427, "title": "05_11_14:30 PM Bulletin"}})
                 if p == "/DataService/mosobjects":
                     if outer.fail_list and "%22title%22" not in self.path: return self.reply({"errors": ["boom"]}, code=500)        # the list call (no title filter) fails, title searches still work
-                    return self.reply({"results": {"assetsPerPage": 50, "medias": outer.medias, "totalResults": len(outer.medias) if outer.media_total is None else outer.media_total}})
+                    import json as _j, urllib.parse as _u
+                    try: flt = _j.loads((_u.parse_qs(_u.urlparse(self.path).query).get("filter") or ["{}"])[0])
+                    except ValueError: flt = {}
+                    ms = outer.medias; gk = getattr(outer, "group_key", None)
+                    if gk is not None:                                                  # v10.9.3: a Blaze that keeps NEWS in the plain list and knows the group filter field `gk`
+                        if gk in flt: ms = [m for m in ms if m.get("objGroup") == flt[gk]]
+                        else: ms = [m for m in ms if m.get("objGroup") == "NEWS"]       # no group named, or a filter field Blaze does not know (ignored): the plain NEWS list comes back
+                    if flt.get("title"): ms = [m for m in ms if flt["title"].lower() in (m.get("title") or "").lower()]
+                    return self.reply({"results": {"assetsPerPage": 50, "medias": ms, "totalResults": outer.media_total if (gk is None and outer.media_total is not None) else len(ms)}})
                 if p.startswith("/DataService/sessions/"): return self.reply({"user": {"id": 1}})
                 if p.endswith("/complete/"):
-                    sid = p.split("/")[3]; return self.reply({"storyComplete": {"title": outer.story_titles.get(sid, "T" + sid), "shows": [{"id": 34427}] + [{"id": x} for x in outer.linked.get(sid, [])], "versions": [{"id": 1, "scriptDur": outer.script_dur.get(sid, 0), "wpm": 100, "items": outer.story_items.get(sid) or [{"id": 900002, "arrangeOrder": 2}, {"id": 900001, "arrangeOrder": 1}]}], "clips": [{"id": int(sid) * 100 + k, "mosObjectId": {"id": i}, "title": t, "duration": outer.clip_dur.get(i, 50000), "itemId": 900001} for k, (i, t) in enumerate(outer.story_clips.get(sid, []))]}})
+                    sid = p.split("/")[3]; return self.reply({"storyComplete": {**outer.story_extra.get(sid, {}), "title": outer.story_titles.get(sid, "T" + sid), "shows": [{"id": 34427}] + [{"id": x} for x in outer.linked.get(sid, [])], "versions": [{"id": 1, "scriptDur": outer.script_dur.get(sid, 0), "wpm": 100, "items": outer.story_items.get(sid) or [{"id": 900002, "arrangeOrder": 2}, {"id": 900001, "arrangeOrder": 1}]}], "clips": [{"id": int(sid) * 100 + k, "mosObjectId": {"id": i}, "title": t, "duration": outer.clip_dur.get(i, 50000), "itemId": 900001} for k, (i, t) in enumerate(outer.story_clips.get(sid, []))]}})
                 self.reply({})
         self.httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H); self.httpd.daemon_threads = True; self.port = self.httpd.server_address[1]
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
@@ -83,7 +91,7 @@ def env(tmp_path):
     s = Srv(tmp_path, "story_id"); f = Fake()
     cfg = bp.Cfg({"BLAZE_URL": "http://127.0.0.1:%d" % f.port, "BLAZE_SESSION_ID": "SID", "BLAZE_USERNAME": "u", "BLAZE_SHOW_IDS": "34427",
                   "WEB_PORT": str(s.port), "SERVICE_API_KEY": "k" * 20, "BLAZE_MEDIA_SETTLE_SECS": "60",
-                  "BLAZE_LEDGER": str(tmp_path / "ledger.db"), "BLAZE_REPORT_DIR": str(tmp_path / "reports"), "BLAZE_IGNORE_TITLES": "BREAK,OPEN MONTAGE", "BLAZE_MEDIA_RETRY_SECS": "0", "BLAZE_INFO_SECS": "0"})
+                  "BLAZE_LEDGER": str(tmp_path / "ledger.db"), "BLAZE_REPORT_DIR": str(tmp_path / "reports"), "BLAZE_IGNORE_TITLES": "BREAK,OPEN MONTAGE", "BLAZE_MEDIA_RETRY_SECS": "0", "BLAZE_INFO_SECS": "0", "BLAZE_MEDIA_GROUPS": "NONE"})
     return s, f, bp.Poller(cfg)
 
 def clips(s):

@@ -3,7 +3,7 @@ from __future__ import annotations
 from .config import data_dir
 import os, re
 
-APP_VERSION = "10.6.1"
+APP_VERSION = "10.9.3"
 from .states import STATES  # noqa: F401  (defined once in states.py)
 HOLD = "STORY REMOVED: "        # attach_error prefix of every clip held because its Blaze story is no longer in the rundown
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")

@@ -298,7 +298,7 @@ def _process(path, claim):
     if not key: return quarantine(path, "no ID at start of filename (expected DDMMYY_STORY_NAME)")
     try: clip = api("/svc/match?" + key_query(key))
     except urllib.error.HTTPError as e:
-        if e.code == 404: return quarantine(path, "ID %s is not in the registry" % key_label(key))
+        if e.code == 404: return quarantine(path, "ID %s is not in the registry%s" % (key_label(key), _why(e)))
         if e.code == 422: return quarantine(path, "check character does not match: ID was mistyped")
         raise
     did = clip["display_id"]
@@ -346,6 +346,12 @@ def beat(nas_ok, problem=None):
     except Exception as e: log.warning("heartbeat failed: %s", e)
 
 # ---------- observe mode: watch only, never touch a file ----------
+def _why(e):
+    """v10.7.0: the registry's reason for a 404 (for example 'the next update for 111126_FIRE is U02'), as ': reason'; empty for the plain 'no such clip id'."""
+    try: d = json.loads(e.read()).get("detail") or ""
+    except Exception: d = ""
+    return (": " + d) if d and d != "no such clip id" else ""
+
 def match(key):
     """Registry lookup for a parsed filename key (day, seq, version, check). Raises HTTPError 404 (unknown) / 422 (bad check letter)."""
     return api("/svc/match?" + key_query(key))
@@ -414,7 +420,7 @@ def observe_tick(state):
             except urllib.error.HTTPError as ex:
                 if ex.code in (404, 422):
                     e["retry_at"] = now + 60
-                    alert_once("badid:" + p, "%s: %s" % (n, "ID %s is not in the registry" % key_label(e["key"]) if ex.code == 404 else "check character does not match: ID was mistyped"))
+                    alert_once("badid:" + p, "%s: %s" % (n, ("ID %s is not in the registry" % key_label(e["key"]) + _why(ex)) if ex.code == 404 else "check character does not match: ID was mistyped"))
                 else: alert_once("registry", "registry error %d, Playout files are being tracked but not reported" % ex.code)
             except (urllib.error.URLError, OSError, ValueError) as ex: alert_once("registry", "registry unreachable: %s" % ex)
         try: st = os.stat(p)

@@ -1,6 +1,6 @@
 """Server methods for the feeds (poller, watcher, MOS gateway): story sync, files, media, attach confirmation, quick-attach, status."""
 from __future__ import annotations
-from .ids import check_char, enc_version, id_format, norm_name, split_suffix
+from .ids import check_char, enc_version, id_format, kind_of, name_base, norm_name, split_suffix, vlabel
 import datetime as dt, json, time
 from .db import now_iso
 from .common import APP_VERSION, HttpError, STATES, opt
@@ -10,23 +10,46 @@ class ServiceMixin:
         with self.db.tx() as cur: cur.one("SELECT 1 AS ok")
         return {"ok": True, "version": APP_VERSION}
     def s_story(self, r):
-        b = r.body; self.need(b, "blaze_rundown_id", "blaze_story_id")
+        b = r.body; self.need(b, "blaze_rundown_id", "blaze_story_id"); notes = []
         with self.db.tx() as cur:
             rid = self.get_rundown(cur, b["blaze_rundown_id"], b.get("rundown_name"))
-            return self.upsert_story_row(cur, rid, b["blaze_story_id"], b.get("slug") or "", opt(b.get("slug_id")), opt(b.get("position")))[0]
+            out = self.upsert_story_row(cur, rid, b["blaze_story_id"], b.get("slug") or "", opt(b.get("slug_id")), opt(b.get("position")), notes=notes)[0]
+        self.tell_renames(notes, b.get("rundown_name") or b["blaze_rundown_id"])
+        return out
+    def tell_renames(self, notes, where):
+        """v10.9.1: after the transaction, tell the desk about every story renamed in Blaze and the clip name that followed it."""
+        for n in notes:
+            if n.get("renamed"): self.alert("Story renamed in Blaze (%s): '%s' -> '%s'. The clip name is now %s (was %s). Name the file with the NEW name; a file with the old name is refused." % (where, n["from"], n["to"], ", ".join(b for _, b in n["renamed"]), ", ".join(a for a, _ in n["renamed"])))
     def s_sync(self, r):
         """The COMPLETE story list of one rundown (roCreate / roReplace): create or refresh every listed story, remove the rest and hold their clips."""
-        b = r.body; self.need(b, "blaze_rundown_id")
+        b = r.body; self.need(b, "blaze_rundown_id"); notes = []
         with self.db.tx() as cur:
             rid = self.get_rundown(cur, b["blaze_rundown_id"], b.get("rundown_name"), opt(b.get("rundown_start"))); seen, created, restored = [], 0, 0
+            moved = self.adopt_replaced(cur, rid, b.get("stories") or [])
             for st in b.get("stories") or []:
                 if not st.get("blaze_story_id"): continue
-                _, c, rs = self.upsert_story_row(cur, rid, st["blaze_story_id"], st.get("slug") or "", opt(st.get("slug_id")), opt(st.get("position")), st.get("story_title") or None); seen.append(st["blaze_story_id"]); created += c; restored += rs
+                _, c, rs = self.upsert_story_row(cur, rid, st["blaze_story_id"], st.get("slug") or "", opt(st.get("slug_id")), opt(st.get("position")), st.get("story_title") or None, notes=notes, old_key=moved.get(st["blaze_story_id"])); seen.append(st["blaze_story_id"]); created += c; restored += rs
             ids, held = self.remove_stories(cur, rid, "rundown replaced", keep=seen)
             if created or restored or ids or held: self.log(cur, "mos", "rundown_synced", {"rundown": b["blaze_rundown_id"], "stories": len(seen), "created": created, "restored": restored, "removed": len(ids), "held": held})
+        self.tell_renames(notes, b.get("rundown_name") or b["blaze_rundown_id"])
         if held: self.alert("Rundown %s: %d stories removed in Blaze; %d clips already on Nitro are now NEEDS DESK (%s). Desk: check them before attaching." %
                             (b.get("rundown_name") or b["blaze_rundown_id"], len(ids), len(held), ", ".join(held[:8]) + (" ..." if len(held) > 8 else "")))
         return {"stories": len(seen), "created": created, "restored": restored, "removed": len(ids), "held": held}
+    def adopt_replaced(self, cur, rid, stories):
+        """v10.9.2: Blaze gives a story renamed in the rundown a NEW story ID in the same slug. Without this the old story was struck out (removed) and a second row was made. Now, when a story ID we do not know takes over a slug that
+        holds a story that is no longer listed, and every clip of that old story is still WAITING_FOR_CLIP (no file seen, nothing sent), the old row is kept and moves to the new story ID: its clip keeps its ID and, through the
+        title change that follows, gets the new name. Anything else (a clip with a file, two candidates, no slug ID) stays as before: struck out and a new row. -> {new story id: old story id}"""
+        incoming = {str(x["blaze_story_id"]) for x in stories if x.get("blaze_story_id")}; moved, taken = {}, set()
+        for st in stories:
+            nid, slug_id = str(st.get("blaze_story_id") or ""), opt(st.get("slug_id"))
+            if not nid or not slug_id or cur.one("SELECT 1 AS x FROM stories WHERE rundown_id=? AND blaze_story_id=?", (rid, nid)): continue
+            cand = [c for c in cur.q("SELECT id, blaze_story_id FROM stories WHERE rundown_id=? AND slug_id=? AND deleted=0", (rid, slug_id)) if c["blaze_story_id"] not in incoming and c["id"] not in taken]
+            if len(cand) != 1: continue
+            old = cand[0]; states = [x["state"] for x in cur.q("SELECT state FROM clip_ids WHERE story_id=?", (old["id"],))]
+            if not states or any(x != "WAITING_FOR_CLIP" for x in states): continue
+            cur.x("UPDATE stories SET blaze_story_id=? WHERE id=?", (nid, old["id"])); taken.add(old["id"]); moved[nid] = old["blaze_story_id"]
+            self.log(cur, "mos", "story_id_changed", {"blaze_rundown_id": rid, "old_id": old["blaze_story_id"], "new_id": nid, "slug_id": slug_id, "why": "renamed in the rundown (new story ID in the same slug, clip still waiting)"})
+        return moved
     def s_rename(self, r):
         b = r.body; self.need(b, "blaze_rundown_id", "old_id", "new_id")
         with self.db.tx() as cur:
@@ -47,10 +70,16 @@ class ServiceMixin:
         """Match on date + number only (legacy IDs; if a check letter was typed it must be right), or on the whole ID with ?name=DDMMYY_STORY_NAME (case does not matter)."""
         q = r.q
         if q.get("name"):
-            name = self.canon_name(q["name"])
+            name = self.canon_name(q["name"]); fresh = False
             with self.db.tx() as cur:
-                rows = self.name_rows(cur, name) or self.auto_versions(cur, name)      # v10.5.0: a _U01 / _V01 file whose clip has no entry yet gets one here (VERSION_SUFFIX=on)
-            if not rows: raise HttpError(404, "no such clip id")
+                rows = self.name_rows(cur, name)
+                if not rows: rows = self.auto_versions(cur, name); fresh = bool(rows)      # v10.5.0: a _U01 / _V01 file whose clip has no entry yet gets one here (VERSION_SUFFIX=on)
+                if not rows:                                                                # v10.9.1: the name the story had before it was renamed in Blaze: say what it is called now
+                    sp = split_suffix(norm_name(name)); h = self.old_name_hint(cur, name); tail = ""
+                    if not h and sp: h = self.old_name_hint(cur, sp[0]); tail = "_%s%02d" % (sp[1], sp[2])
+                    if h: self.refused[name] = "this story was renamed in Blaze: the clip name is now %s%s, not %s. Name the file %s%s" % (h["cur"], tail, h["old"] + tail, h["cur"], tail)
+            if fresh: self.alert("%s detected from the file name: clip ID %s made for %d stor%s." % ("UPDATE (replaces the story's main clip)" if kind_of(rows[0]["version"]) == "U" else "NEW CLIP (added beside the clips already in the story)", rows[0]["name_id"], len(rows), "y" if len(rows) == 1 else "ies"))
+            if not rows: raise HttpError(404, self.refused.pop(name, None) or "no such clip id")
             return dict(rows[0], group=[x["display_id"] for x in rows])      # one clip name can belong to several stories: the file event is applied to all of them
         try: d = dt.datetime.strptime(q["day"], "%Y%m%d").date(); seq = int(q["seq"]); ver = int(q.get("version", 1))
         except (KeyError, ValueError): raise HttpError(422, "day (YYYYMMDD), seq and version are required")
@@ -62,19 +91,53 @@ class ServiceMixin:
     def canon_name(name):
         """v10.5.0: 111126_fire_u2 and 111126_FIRE_U02 are one clip name (VERSION_SUFFIX=on); anything else is returned unchanged."""
         sp = split_suffix(norm_name(name)); return name if not sp else "%s_%s%02d" % sp
+    refused = {}                  # v10.7.0: clip name -> why no clip ID was made for it (the 404's detail; the watcher puts it in its alert)
+    AIRED_GRACE_MIN = 60          # v10.7.0: a bulletin that started more than this many minutes ago has aired: a new update / clip is not made for its story
+    @staticmethod
+    def aired(start_at):
+        try: st = dt.datetime.fromisoformat(start_at)
+        except (TypeError, ValueError): return False
+        if st.tzinfo is None: st = st.replace(tzinfo=dt.timezone.utc)
+        return (dt.datetime.now(dt.timezone.utc) - st).total_seconds() > ServiceMixin.AIRED_GRACE_MIN * 60
     def auto_versions(self, cur, name):
-        """v10.5.0, VERSION_SUFFIX=on: the file 111126_FIRE_U02.mxf has been seen and no clip of that name exists. When the plain clip 111126_FIRE exists, every story that holds it gets a clip entry for this
-        version (the same stories a +Version for 'this and later shows' would reach), under the same day and number as the plain clip, so the database's own uniqueness stops a second one. Nothing else changes.
-        Returns the new rows, or [] when the name has no suffix, the plain clip is unknown (a typo stays a 404) or the ID format is legacy."""
+        """v10.5.0, VERSION_SUFFIX=on: the file 111126_FIRE_U02.mxf has been seen and no clip of that name exists. When the plain clip 111126_FIRE exists, the stories that hold it get a clip entry for this
+        version (under the same day and number as the plain clip, so the database's own uniqueness stops a second one). Nothing else changes.
+        v10.7.0, two rules so that a typo or a late file does no harm: (1) the number must be the NEXT one of its kind (_U01 first, then _U02; _U07 with no _U06 is refused, with the reason in self.refused);
+        (2) stories of bulletins that have already aired are skipped (they keep what they have); if every bulletin has aired, the newest one's story gets it.
+        Returns the new rows, or [] when the name has no suffix, the plain clip is unknown (a typo stays a 404), the number is not the next one, or the ID format is legacy."""
         sp = split_suffix(norm_name(name))
         if not sp or id_format() != "name": return []
-        base, kind, n = sp; ver = enc_version(kind, n); made = []
-        for x in self.name_rows(cur, base):
-            st = cur.one("SELECT slug, deleted FROM stories WHERE id=?", (x["story_id"],))
+        base, kind, n = sp; ver = enc_version(kind, n); plain = self.name_rows(cur, base)
+        if not plain: return []
+        top = 0
+        for x in cur.q("SELECT version, COALESCE(name_id, display_id) AS nm FROM clip_ids WHERE UPPER(COALESCE(name_id, display_id)) LIKE ? ESCAPE '\\'", (base.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "\\_%",)):
+            if kind_of(x["version"]) == kind and name_base(x["nm"]).upper() == base: top = max(top, x["version"] % 1000)      # not 111126_FIRE_2's own updates
+        if n != top + 1:
+            self.refused[name] = "%s is not the next number: the next %s for %s is %s%02d" % (name, "update" if kind == "U" else "added clip", base, kind, top + 1); return []
+        live = []
+        for x in plain:
+            st = cur.one("SELECT s.slug, s.deleted, ru.start_at FROM stories s JOIN rundowns ru ON ru.id=s.rundown_id WHERE s.id=?", (x["story_id"],))
             if not st or st["deleted"] or cur.one("SELECT id FROM clip_ids WHERE story_id=? AND version=?", (x["story_id"], ver)): continue
-            made.append(self.new_clip(cur, x["story_id"], st["slug"], dt.date.fromisoformat(x["day"]), x["seq"], ver, name="%s_%s%02d" % (base, kind, n)))
-        if made: self.log(cur, "watcher", "version_auto", {"name_id": made[0]["name_id"], "kind": kind, "stories": len(made), "from_file": True})
+            live.append((st["start_at"] or "", x, st))
+        live.sort(key=lambda t: (t[0], t[1]["id"])); targets = [t for t in live if not self.aired(t[0])] or live[-1:]
+        made = [self.new_clip(cur, x["story_id"], st["slug"], dt.date.fromisoformat(x["day"]), x["seq"], ver, name="%s_%s%02d" % (base, kind, n)) for _, x, st in targets]
+        if made: self.log(cur, "watcher", "version_auto", {"name_id": made[0]["name_id"], "kind": kind, "stories": len(made), "skipped_aired": len(live) - len(targets), "from_file": True})
         return made
+    def s_replaced(self, r):
+        """v10.7.0: the poller attached an update (_Un) and removed the older main clip from the story, verified. The older clip IDs (one per bulletin of that story) are marked replaced, so the dashboard
+        says so and the story's clip count is right. display_id = the update; replaced = the older clips' display_ids, all of the SAME Blaze story."""
+        b = r.body; self.need(b, "display_id", "replaced")
+        if not isinstance(b["replaced"], list): raise HttpError(422, "replaced must be a list of display_id")
+        with self.db.tx() as cur:
+            new = cur.one("SELECT c.id, c.display_id, s.blaze_story_id FROM clip_ids c JOIN stories s ON s.id=c.story_id WHERE c.display_id=?", (b["display_id"],))
+            if not new: raise HttpError(404, "unknown display_id")
+            done = []
+            for did in b["replaced"][:50]:
+                old = cur.one("SELECT c.id, c.display_id, c.replaced_at, s.blaze_story_id FROM clip_ids c JOIN stories s ON s.id=c.story_id WHERE c.display_id=?", (did,))
+                if not old or old["blaze_story_id"] != new["blaze_story_id"] or old["id"] == new["id"] or old["replaced_at"]: continue
+                cur.x("UPDATE clip_ids SET replaced_at=?, replaced_by=? WHERE id=?", (now_iso(), new["display_id"], old["id"])); done.append(old["display_id"])
+            if done: self.log(cur, "blaze", "clip_replaced", {"by": new["display_id"], "replaced": done, "blaze_story_id": new["blaze_story_id"]})
+        return {"ok": True, "marked": len(done)}
     def s_files(self, r):
         f = r.body; self.need(f, "display_id", "state")
         if f["state"] not in STATES: raise HttpError(400, "bad state")
@@ -121,6 +184,8 @@ class ServiceMixin:
                 if not isinstance(x, dict) or not x.get("blaze_story_id"): continue
                 o, a = txt(x.get("online")), txt(x.get("anchor"))
                 n += cur.x("UPDATE stories SET online_script=?, anchor_script=?, script_at=? WHERE blaze_story_id=? AND (script_at IS NULL OR COALESCE(online_script,'')<>? OR COALESCE(anchor_script,'')<>?)", (o, a, now_iso(), str(x["blaze_story_id"]), o, a))
+                who = [str(x.get(k) or "").strip()[:80] or None for k in ("created_by", "created_by_id", "assigned_to", "assigned_to_id")]      # v10.9.0: sent by the same read; a field the story does not carry never wipes what is stored
+                if any(who): cur.x("UPDATE stories SET created_by=COALESCE(?,created_by), created_by_id=COALESCE(?,created_by_id), assigned_to=COALESCE(?,assigned_to), assigned_to_id=COALESCE(?,assigned_to_id) WHERE blaze_story_id=?", (*who, str(x["blaze_story_id"])))
         return {"ok": True, "updated": n}
     def s_media(self, r):
         """The poller found this clip's file in Blaze's media list (its mosObjectId): the NITRO stage turns green. Records the fact only; it changes no state and attaches nothing."""
@@ -138,8 +203,9 @@ class ServiceMixin:
                 self.log(cur, "blaze", "media_found", {"display_id": c["display_id"], "media_id": mid, "media_name": mname, "stories": len(rows)})
                 todo = [x for x, st in fresh if st != "ATTACHED"]                              # nobody needs telling about a clip that is already in the story
                 if todo:
-                    i = cur.one("SELECT s.slug, s.story_title, ru.name AS rundown FROM clip_ids c JOIN stories s ON s.id=c.story_id JOIN rundowns ru ON ru.id=s.rundown_id WHERE c.id=?", (todo[0]["id"],)) or {}
-                    push = "READY on Nitro: %s | clip %s | MOS %s | media %s%s%s" % (i.get("story_title") or i.get("slug") or "-", c["name_id"] or c["display_id"], mid, mname or "-",
+                    i = cur.one("SELECT s.slug, s.story_title, ru.name AS rundown, c.version FROM clip_ids c JOIN stories s ON s.id=c.story_id JOIN rundowns ru ON ru.id=s.rundown_id WHERE c.id=?", (todo[0]["id"],)) or {}
+                    tag = {"U": "UPDATED clip READY on Nitro (will replace the main clip)", "V": "ADDED clip READY on Nitro (goes beside the clips already there)"}.get(kind_of(i.get("version")), "READY on Nitro")
+                    push = tag + ": %s | clip %s | MOS %s | media %s%s%s" % (i.get("story_title") or i.get("slug") or "-", c["name_id"] or c["display_id"], mid, mname or "-",
                            (" | " + i["rundown"]) if i.get("rundown") else "", (" | +%d more stor%s with this clip" % (len(todo) - 1, "y" if len(todo) == 2 else "ies")) if len(todo) > 1 else "")
         if push: self.ready_notify(push)
         return {"ok": True, "clips": len(rows)}
@@ -219,7 +285,7 @@ class ServiceMixin:
         except ValueError: raise HttpError(422, "limit must be a number")
         with self.db.tx() as cur: return cur.q("""SELECT c.display_id, COALESCE(c.name_id, c.display_id) AS name_id, c.media_id AS mos_object_id, c.item_id, c.attach_dur, c.blaze_clip_id, c.state, c.version, c.attach_error, c.qa_state, c.qa_by, c.qa_at, s.blaze_story_id, s.slug_id, s.position, s.slug, s.deleted, ru.blaze_rundown_id
                                     FROM clip_ids c JOIN stories s ON s.id=c.story_id JOIN rundowns ru ON ru.id=s.rundown_id
-                                    WHERE c.day=? ORDER BY c.seq, c.version LIMIT ?""", (d.isoformat(), lim))
+                                    WHERE c.day=? ORDER BY c.seq, c.id LIMIT ?""", (d.isoformat(), lim))
 
     # ---------- health and alerts ----------
     def compute_health(self):

@@ -9,6 +9,22 @@ from .common import HttpError, norm
 from . import preview
 
 class DashboardMixin:
+    @staticmethod
+    def user_cond(user):
+        """v10.9.0: the username filter. A story matches when its creator OR the user it is assigned to is the Blaze username (any letter case).
+        v10.9.0: several usernames, comma separated (venkat,abarna): a story matches when ANY of them created it or is assigned to it. At most 60 names. -> (sql, args) or (None, [])."""
+        names = list(dict.fromkeys(u.strip().lower()[:80] for u in (user or "").split(",") if u.strip()))[:60]
+        if not names: return None, []
+        m = ",".join("?" * len(names))
+        return "(LOWER(COALESCE(s.created_by,'')) IN (%s) OR LOWER(COALESCE(s.assigned_to,'')) IN (%s))" % (m, m), names + names
+    @staticmethod
+    def day_users(cur, day, extra="", args=()):
+        """v10.9.0: every username that created or was assigned a story of the day: [{name, created, assigned, n}] for the drop-down. `extra` is an additional AND condition (feed: only clips with a file)."""
+        out = {}
+        for col, key in (("created_by", "created"), ("assigned_to", "assigned")):
+            for x in cur.q("SELECT s.%s AS name, COUNT(DISTINCT s.id) AS n FROM clip_ids c JOIN stories s ON s.id=c.story_id WHERE c.day=? AND s.%s IS NOT NULL AND s.%s<>'' %s GROUP BY LOWER(s.%s)" % (col, col, col, extra, col), [day] + list(args)):
+                o = out.setdefault(x["name"].lower(), {"name": x["name"], "created": 0, "assigned": 0}); o[key] = x["n"]
+        return sorted(({**o, "n": o["created"] + o["assigned"]} for o in out.values()), key=lambda o: o["name"].lower())
     def a_status(self, r): return {"problems": [m for _, (ok, m) in self.compute_health().items() if not ok]}
     def a_clips(self, r):
         """The day's clip IDs. Without page parameters: all of them (as before). With per_page (1 to 200), page, filter (all, action, nitro, attention, waiting, done), show (Blaze show id) and q: one page of the matching clips,
@@ -25,8 +41,10 @@ class DashboardMixin:
         for w in (q.get("q") or "").lower().split()[:8]:
             like = "%" + w.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
             cols = ("LOWER(s.slug)", "LOWER(COALESCE(s.story_title,''))", "LOWER(c.display_id)", "LOWER(COALESCE(c.name_id,''))", "COALESCE(c.media_id,'')", "COALESCE(c.item_id,'')", "s.blaze_story_id", "COALESCE(s.slug_id,'')", "ru.blaze_rundown_id", "LOWER(COALESCE(ru.name,''))",
-                    "COALESCE(strftime('%H:%M', ru.start_at, 'localtime'),'')", "COALESCE(strftime('%H%M', ru.start_at, 'localtime'),'')")
+                    "COALESCE(strftime('%H:%M', ru.start_at, 'localtime'),'')", "COALESCE(strftime('%H%M', ru.start_at, 'localtime'),'')", "LOWER(COALESCE(s.created_by,''))", "LOWER(COALESCE(s.assigned_to,''))")
             where.append("(" + " OR ".join("%s LIKE ? ESCAPE '\\'" % c for c in cols) + ")"); args += [like] * len(cols)
+        uc, ua = self.user_cond(q.get("user"))                                                          # v10.9.0: username filter (creator or assigned-to); it also narrows the bulletin list and its counts
+        if uc: where.append(uc); args += ua
         tbl = "FROM clip_ids c JOIN stories s ON s.id=c.story_id JOIN rundowns ru ON ru.id=s.rundown_id WHERE "
         qbase = tbl + " AND ".join(where); sbase = qbase; sargs = list(args)                       # q applied, no show restriction (the bulletin list)
         if (q.get("show") or "").strip(): where.append("ru.blaze_rundown_id=?"); args.append(q["show"].strip())
@@ -35,7 +53,7 @@ class DashboardMixin:
                    "done": " AND c.state IN (%s)" % marks(DONE), "waiting": " AND c.state NOT IN (%s)" % marks(ACT + DONE)}[flt]
         stargs = {"all": [], "action": list(ACT), "nitro": list(NITRO), "attention": list(ATTN), "done": list(DONE), "waiting": list(ACT + DONE)}[flt]
         inflt = lambda st: (flt == "all" or (flt == "action" and st in ACT) or (flt == "nitro" and st in NITRO) or (flt == "attention" and st in ATTN) or (flt == "done" and st in DONE) or (flt == "waiting" and st not in ACT + DONE))
-        order = ("ORDER BY CASE WHEN c.state IN ('ON_NITRO','NEEDS_DESK','ATTACH_SUBMITTED') THEN 0 ELSE 1 END, CAST(ru.blaze_rundown_id AS INTEGER), s.position IS NULL, s.position, c.seq, c.version") if per else "ORDER BY c.seq, c.version"
+        order = ("ORDER BY CASE WHEN c.state IN ('ON_NITRO','NEEDS_DESK','ATTACH_SUBMITTED') THEN 0 ELSE 1 END, CAST(ru.blaze_rundown_id AS INTEGER), s.position IS NULL, s.position, c.seq, c.id") if per else "ORDER BY c.seq, c.id"
         with self.db.tx() as cur:
             by = {x["state"]: x["n"] for x in cur.q("SELECT c.state, COUNT(*) AS n " + base + " GROUP BY c.state", args)}
             shows = cur.q("SELECT ru.blaze_rundown_id AS id, ru.name, ru.start_at AS start, COUNT(*) AS n FROM clip_ids c JOIN stories s ON s.id=c.story_id JOIN rundowns ru ON ru.id=s.rundown_id WHERE c.day=? GROUP BY ru.id ORDER BY ru.start_at IS NULL, datetime(ru.start_at), CAST(ru.blaze_rundown_id AS INTEGER), ru.name", (d.isoformat(),))
@@ -49,29 +67,31 @@ class DashboardMixin:
                 elif x["st"] not in ACT: b["wait"] += x["n"]
             total = sum(n for st, n in by.items() if inflt(st))
             pages = max(1, -(-total // per)) if per else 1; page = min(page, pages)
-            rows = cur.q("""SELECT c.id, c.display_id, COALESCE(c.name_id, c.display_id) AS name_id, c.media_id AS mos_object_id, c.item_id, c.attach_dur, c.blaze_clip_id, c.qa_state, c.qa_by, c.qa_at, c.qa_msg, c.version, c.story_id, c.state, s.slug, s.story_title, SUBSTR(s.online_script, 1, 400) AS online_script, SUBSTR(s.anchor_script, 1, 400) AS anchor_script, LENGTH(s.online_script) AS online_len, LENGTH(s.anchor_script) AS anchor_len, s.script_at, s.deleted, s.deleted_reason, ru.name AS rundown, ru.start_at AS show_start, ru.blaze_rundown_id, s.blaze_story_id, s.slug_id, s.position, c.created_at,
+            rows = cur.q("""SELECT c.id, c.display_id, COALESCE(c.name_id, c.display_id) AS name_id, c.media_id AS mos_object_id, c.item_id, c.attach_dur, c.blaze_clip_id, c.qa_state, c.qa_by, c.qa_at, c.qa_msg, c.version, c.story_id, c.replaced_at, c.replaced_by, c.state, s.slug, s.story_title, SUBSTR(s.online_script, 1, 400) AS online_script, SUBSTR(s.anchor_script, 1, 400) AS anchor_script, LENGTH(s.online_script) AS online_len, LENGTH(s.anchor_script) AS anchor_len, s.script_at, s.deleted, s.deleted_reason, s.created_by, s.assigned_to, ru.name AS rundown, ru.start_at AS show_start, ru.blaze_rundown_id, s.blaze_story_id, s.slug_id, s.position, c.created_at,
                 COALESCE(c.attach_error, (SELECT error FROM files f WHERE f.clip_id=c.id ORDER BY f.id DESC LIMIT 1)) AS error,
                 (SELECT nas_path FROM files f WHERE f.clip_id=c.id AND f.nas_path IS NOT NULL ORDER BY f.id LIMIT 1) AS _nas, (SELECT nitro_path FROM files f WHERE f.clip_id=c.id AND f.nitro_path IS NOT NULL ORDER BY f.id DESC LIMIT 1) AS _nit,
                 c.on_nitro_at AS _onair_at, c.media_found_at AS _media_at, c.attached_at AS _att_at """ + base + stwhere + " " + order + (" LIMIT %d OFFSET %d" % (per, (page - 1) * per) if per else ""), args + stargs)
         for x in rows: x["stages"] = self.stages(x)
-        if suffix_on() and rows:                                                          # v10.5.0: the story's clips for the badge: how many clip IDs it has and which update (_Un) is the newest
+        if suffix_on() and rows:                                                          # v10.5.0: the story's clips for the badge. v10.7.0: story_clips = the clips really in the story (attached and not replaced), not the number of clip IDs; replaced_label = which update took a clip's place
             with self.db.tx() as cur:
                 ids = sorted({x["story_id"] for x in rows}); info = {}
                 for i in range(0, len(ids), 500):
                     part = ids[i:i + 500]
-                    for y in cur.q("SELECT story_id, COUNT(*) AS n, MAX(CASE WHEN version>1000 AND version<2000 THEN version END) AS u FROM clip_ids WHERE story_id IN (%s) GROUP BY story_id" % ",".join("?" * len(part)), part): info[y["story_id"]] = y
+                    for y in cur.q("SELECT story_id, SUM(CASE WHEN state='ATTACHED' AND replaced_at IS NULL THEN 1 ELSE 0 END) AS n, MAX(CASE WHEN version>1000 AND version<2000 THEN version END) AS u FROM clip_ids WHERE story_id IN (%s) GROUP BY story_id" % ",".join("?" * len(part)), part): info[y["story_id"]] = y
             for x in rows:
-                y = info.get(x["story_id"]) or {}; x["story_clips"] = y.get("n") or 1; x["story_update"] = vlabel(y["u"]) if y.get("u") else None; x["vlabel"] = vlabel(x["version"]) if kind_of(x["version"]) else None
+                y = info.get(x["story_id"]) or {}; x["story_clips"] = y.get("n") or 0; x["replaced_label"] = (re.search(r"_([UV]\d+)$", x["replaced_by"]).group(1) if x.get("replaced_by") and re.search(r"_([UV]\d+)$", x["replaced_by"]) else None); x["story_update"] = vlabel(y["u"]) if y.get("u") else None; x["vlabel"] = vlabel(x["version"]) if kind_of(x["version"]) else None
         wmap, wts = getattr(self, "why", ({}, 0)); wlive = time.time() - wts < 120          # v9.13.1: only while the poller is sending it
         for x in rows: x["why"] = wmap.get(x["display_id"]) if wlive and x["state"] != "ATTACHED" else None
         for x in rows: x["deleted"] = bool(x["deleted"]); x["typed"] = x["blaze_rundown_id"].startswith("name:") or x["blaze_story_id"].startswith("manual-")
         bulletins = [dict(sh, **bul[sh["id"]]) for sh in shows if sh["id"] in bul and bul[sh["id"]]["m"]]
         n = lambda *st: sum(by.get(x, 0) for x in st)
         counts = {"all": sum(by.values()), "action": n(*ACT), "done": n(*DONE), "waiting": sum(by.values()) - n(*ACT) - n(*DONE), "on_nitro": n("ON_NITRO"), "needs_desk": n("NEEDS_DESK", "QUARANTINED"), "attached": n("ATTACHED")}
-        with self.db.tx() as cur: dby = {x["state"]: x["n"] for x in cur.q("SELECT state, COUNT(*) AS n FROM clip_ids WHERE day=? GROUP BY state", (d.isoformat(),))}
+        with self.db.tx() as cur:
+            dby = {x["state"]: x["n"] for x in cur.q("SELECT state, COUNT(*) AS n FROM clip_ids WHERE day=? GROUP BY state", (d.isoformat(),))}
+            users = self.day_users(cur, d.isoformat())
         dn = lambda *st: sum(dby.get(x, 0) for x in st)
         day_counts = {"all": sum(dby.values()), "action": dn(*ACT), "done": dn(*DONE), "waiting": sum(dby.values()) - dn(*ACT) - dn(*DONE), "on_nitro": dn("ON_NITRO"), "needs_desk": dn("NEEDS_DESK", "QUARANTINED"), "attached": dn("ATTACHED")}   # the whole day, whatever the search, filter or show: the cards at the top
-        return {"day": d.isoformat(), "clips": rows, "total": total, "page": page, "pages": pages, "per_page": per, "counts": counts, "day_counts": day_counts, "shows": shows, "bulletins": bulletins}
+        return {"day": d.isoformat(), "clips": rows, "total": total, "page": page, "pages": pages, "per_page": per, "counts": counts, "day_counts": day_counts, "shows": shows, "bulletins": bulletins, "users": users}
     def stages(self, x):
         """The four-step strip of one story: EXPORT (the inbox folder the file was seen in) -> ON AIR (the file moved to the on-air folder) -> NITRO (Blaze's media object, its mosObjectId, was found) -> ATTACHED. Facts only: each is true only when it was recorded."""
         nas, nit = x.pop("_nas", None), x.pop("_nit", None); onair_at, media_at, att_at = x.pop("_onair_at", None), x.pop("_media_at", None), x.pop("_att_at", None)
@@ -186,17 +206,17 @@ class DashboardMixin:
             role = "original" if v == 1 else "update" if k == "U" else "additional" if k == "V" else "version"
             out.append({"id": x["id"], "display_id": x["display_id"], "name_id": x["name_id"], "version": v, "role": role, "label": "BASE" if role == "original" else vlabel(v) if k else "V%d" % v,
                         "state": x["state"], "mos_object_id": x["mos_object_id"], "item_id": x["item_id"], "attach_dur": x["attach_dur"], "blaze_clip_id": x["blaze_clip_id"],
-                        "on_nitro": bool(x["_nit"]), "duration_s": x["duration_s"], "file": re.split(r"[\\/]", x["_nit"])[-1] if x["_nit"] else None})
+                        "replaced": bool(x.get("replaced_at")), "replaced_by": x.get("replaced_by"), "on_nitro": bool(x["_nit"]), "duration_s": x["duration_s"], "file": re.split(r"[\\/]", x["_nit"])[-1] if x["_nit"] else None})
         out.sort(key=lambda y: (y["role"] != "original", y["id"])); return out
     def a_history(self, r):
         """The story-to-media timeline of one clip ID for the detail panel: what happened, when, and what is still to come. Built only from what the registry recorded."""
         with self.db.tx() as cur:
             c = cur.q("""SELECT c.id, c.display_id, COALESCE(c.name_id, c.display_id) AS name_id, c.media_id AS mos_object_id, c.item_id, c.attach_dur, c.blaze_clip_id, c.version, c.state, c.created_at, c.verified_at, c.on_nitro_at, c.attached_at, c.attach_method, c.attach_error,
-                         s.slug, s.story_title, s.online_script, s.anchor_script, s.script_at, s.blaze_story_id, s.position, s.deleted, ru.name AS rundown, ru.start_at AS show_start, ru.blaze_rundown_id
+                         s.slug, s.story_title, s.online_script, s.anchor_script, s.script_at, s.blaze_story_id, s.position, s.deleted, s.created_by, s.assigned_to, ru.name AS rundown, ru.start_at AS show_start, ru.blaze_rundown_id
                          FROM clip_ids c JOIN stories s ON s.id=c.story_id JOIN rundowns ru ON ru.id=s.rundown_id WHERE c.id=?""", (int(r.m[0]),))
             if not c: raise HttpError(404, "no such clip")
             files = cur.q("SELECT state, nas_path, nitro_path, size, duration_s, error, created_at FROM files WHERE clip_id=? ORDER BY id", (c[0]["id"],))
-            sib = cur.q("""SELECT c.id, c.display_id, COALESCE(c.name_id, c.display_id) AS name_id, c.version, c.state, c.media_id AS mos_object_id, c.item_id, c.attach_dur, c.blaze_clip_id,
+            sib = cur.q("""SELECT c.id, c.display_id, COALESCE(c.name_id, c.display_id) AS name_id, c.version, c.replaced_at, c.replaced_by, c.state, c.media_id AS mos_object_id, c.item_id, c.attach_dur, c.blaze_clip_id,
                          (SELECT nitro_path FROM files f WHERE f.clip_id=c.id AND f.nitro_path IS NOT NULL ORDER BY f.id DESC LIMIT 1) AS _nit,
                          (SELECT duration_s FROM files f WHERE f.clip_id=c.id AND f.duration_s IS NOT NULL ORDER BY f.id DESC LIMIT 1) AS duration_s
                          FROM clip_ids c WHERE c.story_id=(SELECT story_id FROM clip_ids WHERE id=?) ORDER BY c.id""", (c[0]["id"],))
@@ -214,7 +234,7 @@ class DashboardMixin:
         if c["deleted"]: steps.append(step("removed", "Story removed from the rundown", "Check in Blaze where the clip belongs before marking it attached", None, False, True))
         first = next((f for f in files if f["nitro_path"] or f["nas_path"]), None); fl = nit or first
         return {"id": c["id"], "display_id": c["display_id"], "name_id": c["name_id"], "state": c["state"], "steps": steps, "story_clips": self.story_clips(sib),
-                "clip": {"slug": c["slug"], "story_title": c["story_title"], "online_script": c["online_script"], "anchor_script": c["anchor_script"], "script_at": c["script_at"], "show_start": c["show_start"], "rundown": c["rundown"], "blaze_rundown_id": c["blaze_rundown_id"], "blaze_story_id": c["blaze_story_id"], "position": c["position"], "deleted": bool(c["deleted"]),
+                "clip": {"slug": c["slug"], "story_title": c["story_title"], "online_script": c["online_script"], "anchor_script": c["anchor_script"], "script_at": c["script_at"], "created_by": c["created_by"], "assigned_to": c["assigned_to"], "show_start": c["show_start"], "rundown": c["rundown"], "blaze_rundown_id": c["blaze_rundown_id"], "blaze_story_id": c["blaze_story_id"], "position": c["position"], "deleted": bool(c["deleted"]),
                          "mos_object_id": c["mos_object_id"], "item_id": c["item_id"], "attach_dur": c["attach_dur"], "blaze_clip_id": c["blaze_clip_id"]},
                 "file": {"name": base((fl or {}).get("nitro_path") or (fl or {}).get("nas_path")), "where": "Nitro" if nit else ("Playout" if fl else None), "size": (fl or {}).get("size"), "duration_s": (fl or {}).get("duration_s")} if fl else None}
     def a_events(self, r):
@@ -241,15 +261,21 @@ class DashboardMixin:
         st = (q.get("status") or "all").lower()
         if st != "all" and st not in self.FEED_GROUP: raise HttpError(400, "status must be all, ready, attached or problem")
         where, args = ["c.day=?", "c.media_found_at IS NOT NULL", "COALESCE(s.deleted,0)=0"], [d.isoformat()]
+        bul = (q.get("bulletin") or "").strip()                                                            # v10.9.0: bulletin (Blaze show id) and username filters, like the dashboard's
+        if bul: where.append("ru.blaze_rundown_id=?"); args.append(bul[:80])
+        uc, ua = self.user_cond(q.get("user"))
+        if uc: where.append(uc); args += ua
         for w in (q.get("q") or "").lower().split()[:8]:
             like = "%" + w.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-            cols = ("LOWER(s.slug)", "LOWER(COALESCE(s.story_title,''))", "LOWER(c.display_id)", "LOWER(COALESCE(c.name_id,''))", "LOWER(COALESCE(c.media_id,''))", "LOWER(COALESCE(c.media_name,''))", "s.blaze_story_id", "LOWER(ru.name)")
+            cols = ("LOWER(s.slug)", "LOWER(COALESCE(s.story_title,''))", "LOWER(c.display_id)", "LOWER(COALESCE(c.name_id,''))", "LOWER(COALESCE(c.media_id,''))", "LOWER(COALESCE(c.media_name,''))", "s.blaze_story_id", "LOWER(ru.name)", "LOWER(COALESCE(s.created_by,''))", "LOWER(COALESCE(s.assigned_to,''))")
             where.append("(" + " OR ".join("%s LIKE ? ESCAPE '\\'" % c for c in cols) + ")"); args += [like] * len(cols)
         tbl = "FROM clip_ids c JOIN stories s ON s.id=c.story_id JOIN rundowns ru ON ru.id=s.rundown_id WHERE "
         with self.db.tx() as cur:
             rows = cur.q("SELECT c.id, c.display_id, COALESCE(c.name_id, c.display_id) AS name_id, c.version, c.state, c.qa_state, c.qa_msg, c.attach_error, c.media_id, c.media_name, c.media_found_at, c.attached_at, "
-                         "s.blaze_story_id, s.slug, s.story_title, s.position, ru.name AS bulletin, ru.start_at, ru.blaze_rundown_id " + tbl + " AND ".join(where) + " ORDER BY c.media_found_at DESC, c.id DESC", args)
+                         "s.blaze_story_id, s.slug, s.story_title, s.position, s.created_by, s.assigned_to, ru.name AS bulletin, ru.start_at, ru.blaze_rundown_id " + tbl + " AND ".join(where) + " ORDER BY c.media_found_at DESC, c.id DESC", args)
             cnt = cur.q("SELECT c.state, c.qa_state, COUNT(*) AS n " + tbl + "c.day=? AND c.media_found_at IS NOT NULL AND COALESCE(s.deleted,0)=0 GROUP BY c.state, c.qa_state", [d.isoformat()])
+            bl = cur.q("SELECT ru.blaze_rundown_id AS id, ru.name, ru.start_at AS start, COUNT(*) AS n " + tbl + "c.day=? AND c.media_found_at IS NOT NULL AND COALESCE(s.deleted,0)=0 GROUP BY ru.id ORDER BY ru.start_at IS NULL, datetime(ru.start_at), CAST(ru.blaze_rundown_id AS INTEGER), ru.id", [d.isoformat()])
+            users = self.day_users(cur, d.isoformat(), "AND c.media_found_at IS NOT NULL AND COALESCE(s.deleted,0)=0")
         counts = {"ready": 0, "attached": 0, "problem": 0, "all": 0}
         for x in cnt:
             k = self.feed_status(x["state"], x["qa_state"]); counts["all"] += x["n"]
@@ -259,11 +285,11 @@ class DashboardMixin:
         for x in rows:
             k = self.feed_status(x["state"], x["qa_state"])
             if st != "all" and k not in self.FEED_GROUP[st]: continue
-            items.append({"id": x["id"], "display_id": x["display_id"], "name_id": x["name_id"], "version": x["version"], "blaze_story_id": x["blaze_story_id"], "story": x["story_title"] or x["slug"], "slug": x["slug"],
+            items.append({"id": x["id"], "display_id": x["display_id"], "name_id": x["name_id"], "version": x["version"], "label": vlabel(x["version"]) if kind_of(x["version"]) else None, "kind": {"U": "update", "V": "added"}.get(kind_of(x["version"])), "blaze_story_id": x["blaze_story_id"], "story": x["story_title"] or x["slug"], "slug": x["slug"], "created_by": x["created_by"], "assigned_to": x["assigned_to"],
                           "bulletin": x["bulletin"], "start_at": x["start_at"], "blaze_rundown_id": x["blaze_rundown_id"], "position": x["position"], "state": x["state"], "qa_state": x["qa_state"],
                           "typed": x["blaze_rundown_id"].startswith("name:") or x["blaze_story_id"].startswith("manual-"), "mos_object_id": x["media_id"], "media_name": x["media_name"], "ready_at": x["media_found_at"], "attached_at": x["attached_at"],
                           "status": k, "status_text": self.FEED_TEXT[k], "reason": (x["qa_msg"] if k == "NOT_SENT" else x["attach_error"] if k == "NEEDS_DESK" else None)})
-        return {"day": d.isoformat(), "items": items[:limit], "total": len(items), "counts": counts, "limit": limit}
+        return {"day": d.isoformat(), "items": items[:limit], "total": len(items), "counts": counts, "limit": limit, "bulletins": bl, "users": users}
     def clips_csv(self, req):
         """The day's clip IDs as a CSV file (opens in Excel). It holds everything that matches the dashboard's current day, search, filter and show: all of it, not one page. Same login and permission as the dashboard; every export is written to the activity log."""
         req.user = self.authenticate(req, "view"); req.q = {k: v for k, v in req.q.items() if k not in ("per_page", "page")}
@@ -274,10 +300,10 @@ class DashboardMixin:
         def cell(v):                                                       # a text that starts with = + - @ would run as a formula in Excel: it is written as plain text
             t = "" if v is None else str(v); return "'" + t if t[:1] in ("=", "+", "-", "@", "\t", "\r") else t
         out = io.StringIO(); w = csv.writer(out, lineterminator="\r\n")
-        w.writerow(["Clip ID", "State", "Version", "Slug", "Story name", "Bulletin", "Bulletin time", "Show ID", "Story ID", "Slug ID", "Row", "Created", "Removed from rundown", "Note", "MOS object ID", "Item ID", "Duration (s)", "Blaze clip ID"])
+        w.writerow(["Clip ID", "State", "Version", "Slug", "Story name", "Bulletin", "Bulletin time", "Show ID", "Story ID", "Slug ID", "Row", "Created", "Removed from rundown", "Note", "MOS object ID", "Item ID", "Duration (s)", "Blaze clip ID", "Created by", "Assigned to"])
         for c in d["clips"]:
-            w.writerow([cell(x) for x in (c["display_id"], c["state"], c["version"], c["slug"], c["story_title"], c["rundown"], hm(c["show_start"]), c["blaze_rundown_id"], c["blaze_story_id"], c["slug_id"], c["position"], c["created_at"], "yes" if c["deleted"] else "", c["error"], c["mos_object_id"], c["item_id"], c["attach_dur"], c["blaze_clip_id"])])
-        with self.db.tx() as cur: self.log(cur, req.user["username"], "clips_exported", {"day": d["day"], "rows": len(d["clips"]), "filter": req.q.get("filter") or "all", "show": req.q.get("show") or "", "q": req.q.get("q") or ""})
+            w.writerow([cell(x) for x in (c["display_id"], c["state"], c["version"], c["slug"], c["story_title"], c["rundown"], hm(c["show_start"]), c["blaze_rundown_id"], c["blaze_story_id"], c["slug_id"], c["position"], c["created_at"], "yes" if c["deleted"] else "", c["error"], c["mos_object_id"], c["item_id"], c["attach_dur"], c["blaze_clip_id"], c.get("created_by"), c.get("assigned_to"))])
+        with self.db.tx() as cur: self.log(cur, req.user["username"], "clips_exported", {"day": d["day"], "rows": len(d["clips"]), "filter": req.q.get("filter") or "all", "show": req.q.get("show") or "", "user": req.q.get("user") or "", "q": req.q.get("q") or ""})
         req.filename = "autoid_clips_%s.csv" % d["day"].replace("-", "")
         return 200, ("\ufeff" + out.getvalue()).encode("utf-8"), "text/csv; charset=utf-8"
 

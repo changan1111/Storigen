@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS rundowns(id INTEGER PRIMARY KEY, blaze_rundown_id TEX
 CREATE TABLE IF NOT EXISTS stories(id INTEGER PRIMARY KEY, blaze_story_id TEXT NOT NULL, rundown_id INTEGER NOT NULL REFERENCES rundowns(id),
   slug TEXT, last_seen_at TEXT, deleted INTEGER NOT NULL DEFAULT 0, deleted_at TEXT, deleted_reason TEXT, UNIQUE(rundown_id, blaze_story_id));
 CREATE TABLE IF NOT EXISTS counters(day TEXT PRIMARY KEY, last INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS clip_old_names(clip_id INTEGER NOT NULL, name TEXT NOT NULL, changed_at TEXT, PRIMARY KEY(clip_id, name));      -- v10.9.1: the clip names a story had before it was renamed in Blaze (only to tell the editor who still uses one)
 CREATE TABLE IF NOT EXISTS clip_ids(id INTEGER PRIMARY KEY, display_id TEXT UNIQUE NOT NULL, day TEXT NOT NULL, seq INTEGER NOT NULL,
   story_id INTEGER NOT NULL REFERENCES stories(id), version INTEGER NOT NULL DEFAULT 1, state TEXT NOT NULL DEFAULT 'WAITING_FOR_CLIP',
   created_at TEXT, verified_at TEXT, on_nitro_at TEXT, attached_at TEXT, attach_method TEXT, attach_error TEXT, name_id TEXT, UNIQUE(day, seq, version));
@@ -42,6 +43,12 @@ COLUMNS = [
     (7, "stories",  "anchor_script",  "TEXT",    "v9.13.2: the story's second script field from Blaze (text2): the anchor's read / intro"),
     (7, "stories",  "script_at",      "TEXT",    "v9.13.2: when this script text was last stored (first read, or the time it last changed in Blaze)"),
     (8, "clip_ids", "media_name",     "TEXT",    "v10.2.0: the file's title in Blaze's media list (shown in the Ready feed)"),
+    (9, "clip_ids", "replaced_at",    "TEXT",    "v10.7.0: when an update (_Un) took this clip's place in the story (the Blaze clip was removed after a verified read-back)"),
+    (9, "clip_ids", "replaced_by",    "TEXT",    "v10.7.0: the display_id of the update that replaced this clip"),
+    (10, "stories", "created_by",     "TEXT",    "v10.9.0: Blaze username of the story's creator (storyComplete, by user id)"),
+    (10, "stories", "created_by_id",  "TEXT",    "v10.9.0: Blaze user number of the creator"),
+    (10, "stories", "assigned_to",    "TEXT",    "v10.9.0: Blaze username the story is assigned to"),
+    (10, "stories", "assigned_to_id", "TEXT",    "v10.9.0: Blaze user number it is assigned to"),
 ]
 SCHEMA_VERSION = max(v for v, *_ in COLUMNS)
 
@@ -64,6 +71,7 @@ class DB:
         self.lock = threading.RLock(); self.conn.executescript(SCHEMA)
         self._migrate()
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_clip_name ON clip_ids(UPPER(COALESCE(name_id, display_id)))")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_clip_old_name ON clip_old_names(name)")
 
     def _migrate(self):
         """Bring an older database up to SCHEMA_VERSION (stored in PRAGMA user_version). A column that is already there is skipped, so a database made before versions existed (user_version 0) upgrades the same way, and its data is kept."""

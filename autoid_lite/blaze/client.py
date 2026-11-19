@@ -8,6 +8,7 @@ import threading
 import time
 import urllib.error, urllib.parse, urllib.request
 from . import snapshot as snap
+from .people import people_of
 from .errors import BlazeError, LoginFailed, SessionExpired
 from .keys import attach_body
 from .safety import ForbiddenCall, check_call
@@ -101,18 +102,40 @@ class Blaze:
         flt = json.dumps({"mosId": "QuickEdge", "fromDate": f(today - dt.timedelta(days=days - 1)), "toDate": f(today)}, separators=(",", ":"))
         j = self.get("/DataService/mosobjects", {"assetsPerPage": 200, "filter": flt, "channelId": 1}) or {}
         return (j.get("results") or {}).get("medias") or []
-    def media_pages(self, days, per_page=200, max_pages=5):
-        """The media list of the last `days` days WITHOUT a title filter, newest first (what the Blaze page asks for when its search box is empty; 156 files for one day in the capture): page after page until
-        totalResults files are in, or max_pages requests were made. -> (medias, totalResults, complete). complete is False when files may be missing from the list (more than max_pages x per_page, or Blaze stopped answering pages)."""
+    def _list_pages(self, days, per_page, max_pages, seen, out, extra=None, group=None):
+        """One walk through /DataService/mosobjects pages (newest first). `extra` = more filter fields (the group). Files already in `seen` are not added twice. -> (rows read, totalResults, complete, filter_ignored).
+        filter_ignored: the answer to a group query holds files of OTHER groups, i.e. Blaze does not know that filter key (the walk stops after page 1)."""
         today = dt.date.today(); f = lambda d: d.strftime("%d/%m/%Y")
-        flt = json.dumps({"mosId": "QuickEdge", "fromDate": f(today - dt.timedelta(days=days - 1)), "toDate": f(today)}, separators=(",", ":"))
-        out, seen, total, ms = [], set(), None, []
+        flt = json.dumps({"mosId": "QuickEdge", **(extra or {}), "fromDate": f(today - dt.timedelta(days=days - 1)), "toDate": f(today)}, separators=(",", ":"))
+        n, total, ms = 0, None, []
         for page in range(1, max_pages + 1):
             res = (self.get("/DataService/mosobjects", {"assetsPerPage": per_page, "pageNo": page, "channelId": 1, "filter": flt}) or {}).get("results") or {}
-            ms = res.get("medias") or []; total = res.get("totalResults", total); new = [m for m in ms if m.get("id") is not None and m["id"] not in seen]
-            for m in new: seen.add(m["id"]); out.append(m)
-            if not new or (isinstance(total, int) and len(out) >= total) or (not isinstance(total, int) and len(ms) < per_page): break
-        return out, total, (len(out) >= total if isinstance(total, int) else len(ms) < per_page)
+            ms = res.get("medias") or []; total = res.get("totalResults", total); n += len(ms)
+            if group and any(m.get("objGroup") not in (None, "", group) for m in ms): return n, total, False, True
+            for m in ms:
+                if m.get("id") is not None and m["id"] not in seen: seen.add(m["id"]); out.append(m)
+            if (isinstance(total, int) and n >= total) or (not isinstance(total, int) and len(ms) < per_page) or not ms: break
+        return n, total, (n >= total if isinstance(total, int) else len(ms) < per_page), False
+    def media_pages(self, days, per_page=200, max_pages=5):
+        """The media list of the last `days` days, newest first: the plain list (what the Blaze page asks for when its search box is empty; 156 files for one day in the capture) and, v10.9.3, ONE LIST PER GROUP
+        (BLAZE_MEDIA_GROUPS, filter key BLAZE_MEDIA_GROUP_KEY): the plain list holds only one group (NEWS), so a PROGRAMS / PROMOS / ADS file was never found and never attached.
+        -> (medias, totalResults, complete). complete is False when files may be missing (more than max_pages x per_page, or Blaze stopped answering pages). self.group_info says what each group gave."""
+        seen, out = set(), []
+        _, total, complete, _ = self._list_pages(days, per_page, max_pages, seen, out)
+        info = self.group_info = getattr(self, "group_info", {})
+        for g in getattr(self.c, "media_groups", []):
+            st = info.setdefault(g, {"state": "ok", "files": 0, "fails": 0})
+            if st["state"] in ("ignored", "off"): continue
+            try: n, gt, gc, ignored = self._list_pages(days, per_page, max_pages, seen, out, {self.c.media_group_key: g}, g)
+            except SessionExpired: raise
+            except Exception as e:                                                        # one group failing never hides the others
+                st["fails"] += 1; st["error"] = "%s: %s" % (type(e).__name__, e)
+                if st["fails"] >= 3: st["state"] = "off"
+                continue
+            st["fails"] = 0; st.pop("error", None)
+            if ignored: st["state"] = "ignored"; continue
+            st["files"] = n; complete = complete and gc
+        return out, total, complete
     def day_shows(self, d1, d2=None):
         """The shows Blaze lists for a date range (the call the rundown panel makes). dates are sent as DD/MM/YY. -> [{id, title, start, slugs, master}]"""
         f = json.dumps({"fromDate": d1.strftime("%d/%m/%y"), "toDate": (d2 or d1).strftime("%d/%m/%y")}, separators=(",", ":"))
@@ -126,11 +149,26 @@ class Blaze:
         if self.c.attach != "live" and not self.quick_ok(story_id): raise ForbiddenCall("the script-duration update is only allowed with BLAZE_ATTACH=live (now %s)" % self.c.attach)
         return self.call("PUT", "/DataService/stories/%s/versions/%s" % (story_id, version_id), form={"scriptDur": int(seconds), "wpm": int(wpm)})
     def media_search(self, text, days, per_page=50):
-        """Search Blaze's media list by title text (the page sends this on every keystroke). -> (medias, totalResults). Whether title matches a prefix or any part is not confirmed, so callers still check the name themselves."""
-        today = dt.date.today(); f = lambda d: d.strftime("%d/%m/%Y")
-        flt = json.dumps({"title": text, "mosId": "QuickEdge", "fromDate": f(today - dt.timedelta(days=days - 1)), "toDate": f(today)}, separators=(",", ":"))
-        res = (self.get("/DataService/mosobjects", {"assetsPerPage": per_page, "pageNo": 1, "channelId": 1, "filter": flt}) or {}).get("results") or {}
-        return res.get("medias") or [], res.get("totalResults")
+        """Search Blaze's media list by title text (the page sends this on every keystroke). -> (medias, totalResults). Whether title matches a prefix or any part is not confirmed, so callers still check the name themselves.
+        v10.9.3: when the plain search finds nothing, the same search is made inside each group (BLAZE_MEDIA_GROUPS)."""
+        today = dt.date.today(); f = lambda d: d.strftime("%d/%m/%Y"); dates = {"fromDate": f(today - dt.timedelta(days=days - 1)), "toDate": f(today)}
+        def ask(extra):
+            flt = json.dumps({"title": text, "mosId": "QuickEdge", **extra, **dates}, separators=(",", ":"))
+            res = (self.get("/DataService/mosobjects", {"assetsPerPage": per_page, "pageNo": 1, "channelId": 1, "filter": flt}) or {}).get("results") or {}
+            return res.get("medias") or [], res.get("totalResults")
+        ms, total = ask({})
+        if ms: return ms, total
+        out, seen, tot = [], set(), 0
+        for g in getattr(self.c, "media_groups", []):
+            if (getattr(self, "group_info", {}).get(g) or {}).get("state") in ("ignored", "off"): continue
+            try: gm, gt = ask({self.c.media_group_key: g})
+            except SessionExpired: raise
+            except Exception: continue
+            if any(m.get("objGroup") not in (None, "", g) for m in gm): continue          # the filter key is not known to Blaze: these are not this group's files
+            for m in gm:
+                if m.get("id") not in seen: seen.add(m.get("id")); out.append(m)
+            tot += gt if isinstance(gt, int) else len(gm)
+        return out, (tot if out else total)
     def story_info(self, story_id):
         """One read of GET /stories/<id>/complete/ -> {clips: [(mosObjectId, title)], item_id, version_id, shows: [ids]}.
         item_id = the item with the lowest arrangeOrder in versions[0] (what the page sent in every observed attach); None when the story has no item."""
@@ -142,7 +180,7 @@ class Blaze:
         item = min(items, key=lambda i: i.get("arrangeOrder") if isinstance(i.get("arrangeOrder"), (int, float)) else 1e9) if items else None
         shows = [str(x.get("id")) for x in (sc.get("shows") or []) if isinstance(x, dict) and x.get("id") is not None]
         ver = {"scriptDur": v.get("scriptDur") or 0, "wpm": v.get("wpm") or 100}
-        return {"scripts": script_texts(items), "title": sc.get("title"), "version": ver, "clips": clips, "rows": rows, "item_id": str(item["id"]) if item else None, "version_id": str(v["id"]) if v.get("id") is not None else None, "shows": shows}
+        return {"scripts": script_texts(items), "title": sc.get("title"), "version": ver, "clips": clips, "rows": rows, "item_id": str(item["id"]) if item else None, "version_id": str(v["id"]) if v.get("id") is not None else None, "shows": shows, "people": people_of(sc)}
     def attach(self, story_id, show, m, order, item_id):
         """THE ONLY WRITE THAT ADDS ANYTHING TO BLAZE. POST /stories/<id>/clips/ with the form the page sends (doc section 8). 201 {"story_status","clip_status"}; the new clip ID is not in the reply."""
         if self.c.attach != "live" and not self.quick_ok(story_id): raise ForbiddenCall("attach is only allowed with BLAZE_ATTACH=live (now %s)" % self.c.attach)
