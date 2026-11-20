@@ -2,6 +2,8 @@
 
 One line per release, newest first. Each link has the full notes. Internal names such as autoid.py and autoid.env were kept on purpose through the Storigen rename.
 
+* [v10.9.8 - selected-text word count and time float above the selection](CHANGES_v1098.md)
+* [v10.9.7 - script pane: one box per Online / Anchor text, word count, reading time, selection count](CHANGES_v1097.md)
 * [v10.9.6 - editor filter in the Ready feed; desktop app (Electron) in `electron/`](CHANGES_v1096.md)
 * [v10.9.5 - editor name from the Blaze slug comment: filter, search, CSV column; tabs (Ready feed, Recent activity 1/2/4 h, Users); the editor also shown in the feed's Assigned to column](CHANGES_v1095.md)
 * [v10.9.4 - history kept 7 days (AUTOID_KEEP_DAYS, nightly clean-up with a backup and compaction); sort the rundown by #, title, status; Removed filter and Hide removed; updated stamp](CHANGES_v1094.md)

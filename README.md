@@ -160,6 +160,10 @@ For installation and operational guidance, refer to:
 
 Release highlights, newest first. Each version links to its full notes.
 
+- [v10.9.8](docs/CHANGES_v1098.md) - The selected-text count floats above the selection instead of sitting in the footer.
+
+- [v10.9.7](docs/CHANGES_v1097.md) - Script pane: every Online / Anchor text in its own box, word count and reading time (words per minute), count for the selected text.
+
 - [v10.9.6](docs/CHANGES_v1096.md) - Editor filter in the Ready feed; Electron desktop app (`electron/INSTRUCTIONS.md`).
 - [v10.9.5](docs/CHANGES_v1095.md) - Editor name (Blaze slug comment) filter and search, header tabs, and the editor shown in the Ready feed's Assigned to column.
 - [v10.6.1](docs/CHANGES_v1061.md) - Quick test recognizes clips the desk already attached, reports why a clip cannot be marked, and explains verification requirements for story format 22.

@@ -239,11 +239,17 @@ class DashboardMixin:
                         "state": x["state"], "mos_object_id": x["mos_object_id"], "item_id": x["item_id"], "attach_dur": x["attach_dur"], "blaze_clip_id": x["blaze_clip_id"],
                         "replaced": bool(x.get("replaced_at")), "replaced_by": x.get("replaced_by"), "on_nitro": bool(x["_nit"]), "duration_s": x["duration_s"], "file": re.split(r"[\\/]", x["_nit"])[-1] if x["_nit"] else None})
         out.sort(key=lambda y: (y["role"] != "original", y["id"])); return out
+    @staticmethod
+    def script_items_of(raw):
+        """v10.9.7: the stored JSON list of {n, online, anchor} (None for a story read before this version: the dashboard then shows the joined text in one box)."""
+        try: v = json.loads(raw) if raw else None
+        except ValueError: return None
+        return v if isinstance(v, list) else None
     def a_history(self, r):
         """The story-to-media timeline of one clip ID for the detail panel: what happened, when, and what is still to come. Built only from what the registry recorded."""
         with self.db.tx() as cur:
             c = cur.q("""SELECT c.id, c.display_id, COALESCE(c.name_id, c.display_id) AS name_id, c.media_id AS mos_object_id, c.item_id, c.attach_dur, c.blaze_clip_id, c.version, c.state, c.created_at, c.verified_at, c.on_nitro_at, c.attached_at, c.attach_method, c.attach_error,
-                         s.slug, s.story_title, s.online_script, s.anchor_script, s.script_at, s.blaze_story_id, s.position, s.deleted, s.created_by, s.assigned_to, s.editor, ru.name AS rundown, ru.start_at AS show_start, ru.blaze_rundown_id
+                         s.slug, s.story_title, s.online_script, s.anchor_script, s.script_items, s.script_at, s.blaze_story_id, s.position, s.deleted, s.created_by, s.assigned_to, s.editor, ru.name AS rundown, ru.start_at AS show_start, ru.blaze_rundown_id
                          FROM clip_ids c JOIN stories s ON s.id=c.story_id JOIN rundowns ru ON ru.id=s.rundown_id WHERE c.id=?""", (int(r.m[0]),))
             if not c: raise HttpError(404, "no such clip")
             files = cur.q("SELECT state, nas_path, nitro_path, size, duration_s, error, created_at FROM files WHERE clip_id=? ORDER BY id", (c[0]["id"],))
@@ -265,7 +271,7 @@ class DashboardMixin:
         if c["deleted"]: steps.append(step("removed", "Story removed from the rundown", "Check in Blaze where the clip belongs before marking it attached", None, False, True))
         first = next((f for f in files if f["nitro_path"] or f["nas_path"]), None); fl = nit or first
         return {"id": c["id"], "display_id": c["display_id"], "name_id": c["name_id"], "state": c["state"], "steps": steps, "story_clips": self.story_clips(sib),
-                "clip": {"slug": c["slug"], "story_title": c["story_title"], "online_script": c["online_script"], "anchor_script": c["anchor_script"], "script_at": c["script_at"], "created_by": c["created_by"], "assigned_to": c["assigned_to"], "editor": c.get("editor"), "show_start": c["show_start"], "rundown": c["rundown"], "blaze_rundown_id": c["blaze_rundown_id"], "blaze_story_id": c["blaze_story_id"], "position": c["position"], "deleted": bool(c["deleted"]),
+                "clip": {"slug": c["slug"], "story_title": c["story_title"], "online_script": c["online_script"], "anchor_script": c["anchor_script"], "script_items": self.script_items_of(c["script_items"]), "script_at": c["script_at"], "created_by": c["created_by"], "assigned_to": c["assigned_to"], "editor": c.get("editor"), "show_start": c["show_start"], "rundown": c["rundown"], "blaze_rundown_id": c["blaze_rundown_id"], "blaze_story_id": c["blaze_story_id"], "position": c["position"], "deleted": bool(c["deleted"]),
                          "mos_object_id": c["mos_object_id"], "item_id": c["item_id"], "attach_dur": c["attach_dur"], "blaze_clip_id": c["blaze_clip_id"]},
                 "file": {"name": base((fl or {}).get("nitro_path") or (fl or {}).get("nas_path")), "where": "Nitro" if nit else ("Playout" if fl else None), "size": (fl or {}).get("size"), "duration_s": (fl or {}).get("duration_s")} if fl else None}
     def a_events(self, r):

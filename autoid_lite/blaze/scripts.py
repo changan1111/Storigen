@@ -20,7 +20,7 @@ class ScriptMixin:
         due = sorted((s for s in sids if now - seen.get(s, 0) >= c.script_secs), key=lambda s: seen.get(s, 0))[: c.script_batch]
         if not due: return 0
         def one(sid):
-            try: return sid, "ok", self.rt(lambda: (lambda i: dict(i["scripts"], people=i.get("people") or {}))(self.b.story_info(sid)))
+            try: return sid, "ok", self.rt(lambda: (lambda i: dict(i["scripts"], people=i.get("people") or {}, items=i.get("script_items") or []))(self.b.story_info(sid)))
             except SessionExpired as e: return sid, "expired", e
             except Exception as e: return sid, "err", e
         got, bad = {}, 0
@@ -28,8 +28,8 @@ class ScriptMixin:
             if kind == "expired": raise val
             if kind == "ok": got[sid] = val
             else: bad += 1
-        sig = lambda v: (v["online"], v["anchor"], tuple(sorted((v.get("people") or {}).items())))      # v10.9.0: who created the story / who it is assigned to travels with the scripts (same read)
-        send = [dict({"blaze_story_id": sid, "online": v["online"], "anchor": v["anchor"]}, **(v.get("people") or {})) for sid, v in got.items() if self.script_sig.get(sid) != sig(v)]
+        sig = lambda v: (v["online"], v["anchor"], tuple(sorted((v.get("people") or {}).items())), repr(v.get("items") or []))      # v10.9.0: who created the story / who it is assigned to travels with the scripts (same read)
+        send = [dict({"blaze_story_id": sid, "online": v["online"], "anchor": v["anchor"], "items": v.get("items") or []}, **(v.get("people") or {})) for sid, v in got.items() if self.script_sig.get(sid) != sig(v)]
         sent = 0
         for i in range(0, len(send), 50):
             chunk = send[i:i + 50]

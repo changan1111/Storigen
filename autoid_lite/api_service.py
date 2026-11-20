@@ -179,12 +179,21 @@ class ServiceMixin:
         b = r.body; self.need(b, "stories")
         if not isinstance(b["stories"], list): raise HttpError(422, "stories must be a list")
         txt = lambda v: v[: self.SCRIPT_CAP] if isinstance(v, str) else ""
+        def items_of(v):                                                                      # v10.9.7: a missing / bad list means "not sent" (None): what is stored stays
+            if not isinstance(v, list): return None
+            out, left = [], {"online": 2 * self.SCRIPT_CAP, "anchor": 2 * self.SCRIPT_CAP}
+            for i in v[:50]:
+                if not isinstance(i, dict): continue
+                e = {"n": i.get("n") if isinstance(i.get("n"), int) and 0 < i.get("n") < 1000 else len(out) + 1}
+                for k in ("online", "anchor"): e[k] = txt(i.get(k))[: left[k]]; left[k] -= len(e[k])
+                if e["online"] or e["anchor"]: out.append(e)
+            return json.dumps(out, ensure_ascii=False)
         n = 0
         with self.db.tx() as cur:
             for x in b["stories"][:200]:
                 if not isinstance(x, dict) or not x.get("blaze_story_id"): continue
-                o, a = txt(x.get("online")), txt(x.get("anchor"))
-                n += cur.x("UPDATE stories SET online_script=?, anchor_script=?, script_at=? WHERE blaze_story_id=? AND (script_at IS NULL OR COALESCE(online_script,'')<>? OR COALESCE(anchor_script,'')<>?)", (o, a, now_iso(), str(x["blaze_story_id"]), o, a))
+                o, a, it = txt(x.get("online")), txt(x.get("anchor")), items_of(x.get("items"))
+                n += cur.x("UPDATE stories SET online_script=?, anchor_script=?, script_items=COALESCE(?,script_items), script_at=? WHERE blaze_story_id=? AND (script_at IS NULL OR COALESCE(online_script,'')<>? OR COALESCE(anchor_script,'')<>? OR (? IS NOT NULL AND COALESCE(script_items,'')<>?))", (o, a, it, now_iso(), str(x["blaze_story_id"]), o, a, it, it))
                 who = [str(x.get(k) or "").strip()[:80] or None for k in ("created_by", "created_by_id", "assigned_to", "assigned_to_id")]      # v10.9.0: sent by the same read; a field the story does not carry never wipes what is stored
                 if any(who): cur.x("UPDATE stories SET created_by=COALESCE(?,created_by), created_by_id=COALESCE(?,created_by_id), assigned_to=COALESCE(?,assigned_to), assigned_to_id=COALESCE(?,assigned_to_id) WHERE blaze_story_id=?", (*who, str(x["blaze_story_id"])))
         return {"ok": True, "updated": n}

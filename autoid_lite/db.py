@@ -50,6 +50,7 @@ COLUMNS = [
     (10, "stories", "assigned_to",    "TEXT",    "v10.9.0: Blaze username the story is assigned to"),
     (10, "stories", "assigned_to_id", "TEXT",    "v10.9.0: Blaze user number it is assigned to"),
     (11, "stories", "editor",         "TEXT",    "v10.9.5: the video editor's name: the text of the slug's comment in Blaze (the editors write their name there)"),
+    (12, "stories", "script_items",  "TEXT",    "v10.9.7: the story's script item by item (JSON list of {n, online, anchor}): the middle pane shows every Online / Anchor text in its own box"),
 ]
 SCHEMA_VERSION = max(v for v, *_ in COLUMNS)
 

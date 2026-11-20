@@ -22,6 +22,14 @@ def script_texts(items, cap=20000):
     return {"online": join("text1"), "anchor": join("text2")}
 
 
+def script_items(items, cap=20000, most=50):
+    """v10.9.7: the same two fields, kept item by item (so the dashboard can show every Online / Anchor text in its own box).
+    -> [{"n": position of the item in arrangeOrder (1, 2, 3 ...), "online": text1, "anchor": text2}]; an item with both texts empty is left out, the others keep their own number."""
+    order = sorted(items, key=lambda i: i.get("arrangeOrder") if isinstance(i.get("arrangeOrder"), (int, float)) else 1e9)
+    one = lambda i, k: i.get(k).strip()[:cap] if isinstance(i.get(k), str) else ""
+    return [{"n": n, "online": one(i, "text1"), "anchor": one(i, "text2")} for n, i in enumerate(order, 1) if one(i, "text1") or one(i, "text2")][:most]
+
+
 # ---------------------------------------------------------------- Blaze (read only)
 class Blaze:
     def __init__(self, c): self.c = c; self._tl = threading.local(); self.put_at = 0.0                 # one Blaze object is shared by the reader threads: nothing mutable is shared between them
@@ -181,7 +189,7 @@ class Blaze:
         item = min(items, key=lambda i: i.get("arrangeOrder") if isinstance(i.get("arrangeOrder"), (int, float)) else 1e9) if items else None
         shows = [str(x.get("id")) for x in (sc.get("shows") or []) if isinstance(x, dict) and x.get("id") is not None]
         ver = {"scriptDur": v.get("scriptDur") or 0, "wpm": v.get("wpm") or 100}
-        return {"scripts": script_texts(items), "title": sc.get("title"), "version": ver, "clips": clips, "rows": rows, "item_id": str(item["id"]) if item else None, "version_id": str(v["id"]) if v.get("id") is not None else None, "shows": shows, "people": people_of(sc)}
+        return {"scripts": script_texts(items), "script_items": script_items(items), "title": sc.get("title"), "version": ver, "clips": clips, "rows": rows, "item_id": str(item["id"]) if item else None, "version_id": str(v["id"]) if v.get("id") is not None else None, "shows": shows, "people": people_of(sc)}
     def attach(self, story_id, show, m, order, item_id):
         """THE ONLY WRITE THAT ADDS ANYTHING TO BLAZE. POST /stories/<id>/clips/ with the form the page sends (doc section 8). 201 {"story_status","clip_status"}; the new clip ID is not in the reply."""
         if self.c.attach != "live" and not self.quick_ok(story_id): raise ForbiddenCall("attach is only allowed with BLAZE_ATTACH=live (now %s)" % self.c.attach)
