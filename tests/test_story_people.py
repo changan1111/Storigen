@@ -64,7 +64,7 @@ def test_the_csv_has_the_two_columns_and_follows_the_username_filter(sid):
     import urllib.request
     story_set(sid, 2); sid.svc("POST", "/svc/scripts", {"stories": [{"blaze_story_id": "700001", "online": "", "anchor": "", "created_by": "abarna", "assigned_to": "yogesh"}]})
     get = lambda q: urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:%d/api/clips.csv%s" % (sid.port, q), headers={"Cookie": sid.cookie}), timeout=10).read().decode("utf-8-sig")
-    t = get("?user=yogesh"); assert t.splitlines()[0].endswith("Created by,Assigned to") and "abarna,yogesh" in t and "700000" not in t and "700001" in t
+    t = get("?user=yogesh"); assert t.splitlines()[0].endswith("Created by,Assigned to,Editor") and "abarna,yogesh" in t and "700000" not in t and "700001" in t
     assert "700000" in get("")
 
 def test_the_feed_filters_by_bulletin_and_username_and_lists_the_choices(sid):
@@ -106,4 +106,4 @@ def test_the_page_uses_a_tick_list_for_users():
 
 def test_the_user_list_has_a_type_to_search_box():
     t = (pathlib.Path(__file__).resolve().parents[1] / "autoid_lite" / "web" / "index.html").read_text(encoding="utf-8")
-    assert t.count('class="ups"') == 2 and "function upFilter" in t and "No user matches" in t and 'e.key==="Enter"' in t and 'details.upick[open]' in t
+    assert t.count('class="ups"') == 3 and 'id="editf" class="upick"' in t and "function upFilter" in t and "No match" in t and 'e.key==="Enter"' in t and 'details.upick[open]' in t

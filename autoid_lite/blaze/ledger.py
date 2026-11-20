@@ -29,6 +29,10 @@ class Ledger:
     def __init__(self, path):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.c = sqlite3.connect(str(path), isolation_level=None, timeout=30); self.c.row_factory = sqlite3.Row; self.c.executescript(SCHEMA)
+    def prune(self, now, days):
+        """v10.9.4: plan / seen / live rows of clips older than `days` + 1 (the server has deleted those clips by then, their IDs never come back)."""
+        cut = now - (days + 1) * 86400
+        for t, col in (("plan", "planned_at"), ("seen", "first_seen"), ("live", "sent_at")): self.c.execute("DELETE FROM %s WHERE %s<?" % (t, col), (cut,))
     def has_plan(self, display_id): return self.c.execute("SELECT 1 FROM plan WHERE display_id=?", (display_id,)).fetchone() is not None
     def plan(self, display_id, story, show, media_id, title, now=None):
         now = now or time.time(); r = self.c.execute("SELECT media_id FROM plan WHERE display_id=?", (display_id,)).fetchone()

@@ -69,7 +69,7 @@ class RunMixin:
                                                                                                                  "last_error": (polls.get(sh) or {}).get("last_error")} for sh in self.c.shows]}, ensure_ascii=False, indent=1)
             tmp = rp / "poll_stats.json.tmp"; tmp.write_text(body, encoding="utf-8"); os.replace(tmp, rp / "poll_stats.json")
         except OSError: pass
-        if now - getattr(self, "pruned", 0) > 86400: self.pruned = now; self.store.prune(now, self.c.snap_days)
+        if now - getattr(self, "pruned", 0) > 86400: self.pruned = now; self.store.prune(now, self.c.snap_days); (self.led.prune(now, self.c.keep_days) if self.c.keep_days > 0 else None)
         self.a.call("/svc/heartbeat", {"component": "blaze_poll", "detail": {"stories": n, "shows": len(self.c.shows), "attach": self.c.attach, "poll": d, "problem": prob,
                                                                                     "pid": os.getpid(), "began": getattr(self, "began", None), "differs": self.settings_drift()}})     # only after a good read: silence turns the page red
     def auto_login(self):

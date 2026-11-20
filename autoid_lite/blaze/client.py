@@ -84,7 +84,8 @@ class Blaze:
             st = s.get("storyId") or {}
             if st.get("id") is None: continue
             out.append({"story_id": str(st["id"]), "slug_id": str(s.get("id")), "title": s.get("slugTitle") or st.get("title") or "", "pos": s.get("finalPosition"), "format": str((st.get("storyFormatId") or {}).get("id")), "clips": st.get("clipCount"),
-                        "clip_dur": st.get("clipDur"), "clip_status": st.get("clipStatus"), "clip_state": s.get("clipState"), "cg": st.get("cgCount"), "story_title": st.get("title") or ""})    # the attachment signals the slug list carries for free
+                        "clip_dur": st.get("clipDur"), "clip_status": st.get("clipStatus"), "clip_state": s.get("clipState"), "cg": st.get("cgCount"), "story_title": st.get("title") or "",
+                        "editor": (str(s.get("comment") or "").strip()[:120] if "comment" in s else None)})      # v10.9.5: the slug's comment = the editor's name (None when this Blaze list does not carry the field: nothing is wiped)    # the attachment signals the slug list carries for free
         return out
     def story_media(self, story_id):
         """The identity of every MEDIA clip of a story, from the cheap clip list (about 16 ms; /complete/ took about 167 ms in the capture): Blaze clip ID, media object ID, objId, title, duration, position."""

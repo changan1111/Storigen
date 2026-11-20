@@ -30,7 +30,8 @@ class Cfg:
         self.retries = min(3, max(0, int(g("BLAZE_REQUEST_RETRIES", "1"))))              # v9.5: quick retries of a read that failed for a network or 5xx reason (only while the round has time left)
         self.keep_completed = g("BLAZE_KEEP_COMPLETED", "1") == "1"                      # v9.5: a finished show that Blaze stops listing is still followed until the broadcast day closes
         self.hot_before = int(g("BLAZE_HOT_BEFORE_MIN", "60"))                           # v9.5: a show that started longer ago than this counts as finished
-        self.snap_days = max(1, int(g("BLAZE_SNAPSHOT_KEEP_DAYS", "14")))                # v9.5: snapshots and change history older than this are pruned
+        self.keep_days = max(0, int(g("AUTOID_KEEP_DAYS", "7") or "7"))                    # v10.9.4: how many broadcast days of history are kept (0 = all); the server cleans autoid.db, this program its own file
+        self.snap_days = max(1, int(g("BLAZE_SNAPSHOT_KEEP_DAYS", "") or (self.keep_days or 14)))                # v9.5: snapshots and change history older than this are pruned
         self.fresh_secs = max(1, int(g("BLAZE_FRESH_SECS", str(self.poll))))        # a show not read successfully for longer than this counts as over the freshness target
         self.stale_secs = max(self.fresh_secs, int(g("BLAZE_STALE_SECS", "90")))   # ...and for longer than this it is reported as a problem on the monitoring page
         self.ident_secs = max(15, int(g("BLAZE_IDENT_SECS", "120"))); self.ident_batch = max(10, int(g("BLAZE_IDENT_BATCH", "60")))   # attachment identity sweep: each story with clips is re-read this often (at most this many per pass)

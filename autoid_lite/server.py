@@ -16,10 +16,11 @@ import datetime as dt, json, os, re, secrets, sys, threading, time, urllib.parse
 from .alerts import send_alert, send_ready
 from .api_auth import AuthMixin  # noqa: F401  (re-export: other code and the tests use server.<name>)
 from .api_dashboard import DashboardMixin  # noqa: F401  (re-export: other code and the tests use server.<name>)
+from .retention import RetentionMixin  # noqa: F401  (v10.9.4)
 from .api_service import ServiceMixin  # noqa: F401  (re-export: other code and the tests use server.<name>)
 from .common import APP_VERSION, EMAIL_RE, HOLD, HttpError, MAX_BODY, Req, STATES, norm, opt, removed_message, settings_from_env  # noqa: F401  (re-export: other code and the tests use server.<name>)
 
-class App(ServiceMixin, AuthMixin, DashboardMixin):
+class App(ServiceMixin, AuthMixin, DashboardMixin, RetentionMixin):
     def __init__(self, cfg, db_path, web_dir=None):
         self.cfg = cfg; self.db = DB(db_path); self.web_dir = Path(web_dir or Path(__file__).parent / "web")
         if len(cfg["api_key"]) < 16 or len(cfg["secret"]) < 32:
@@ -36,6 +37,7 @@ class App(ServiceMixin, AuthMixin, DashboardMixin):
             ("GET", "/api/clips", self.a_clips, "view"), ("GET", "/api/feed", self.a_feed, "view"), ("GET", "/api/rundowns", self.a_rundowns, "view"), ("POST", "/api/manual", self.a_manual, "create"),
             ("POST", r"/api/clips/(\d+)/version", self.a_version, "version"), ("GET", r"/api/clips/(\d+)/scope", self.a_scope, "view"), ("POST", r"/api/clips/(\d+)/delete_version", self.a_delete_version, "version"), ("POST", r"/api/clips/(\d+)/attached", self.a_attached, "attach"), ("POST", r"/api/clips/(\d+)/quickattach", self.a_quickattach, "attach"),
             ("GET", r"/api/clips/(\d+)/history", self.a_history, "view"), ("GET", r"/api/clips/(\d+)/preview", self.a_preview, "view"), ("GET", "/api/events", self.a_events, "events"),
+            ("GET", "/api/retention", self.a_retention, "view"), ("POST", "/api/retention/run", self.a_retention_run, "users"),
             ("GET", "/api/users", self.a_users, "users"), ("POST", "/api/users", self.a_add_user, "users"),
             ("PATCH", r"/api/users/([\w-]+)", self.a_edit_user, "users"), ("POST", r"/api/users/([\w-]+)/password", self.a_password, "users")]]
 
@@ -220,6 +222,7 @@ def main():
     apply_env(); cfg = settings_from_env(); dd = data_dir(); dd.mkdir(parents=True, exist_ok=True)
     app = App(cfg, dd / "autoid.db"); app.bootstrap_admin()
     threading.Thread(target=app.monitor, daemon=True).start()
+    threading.Thread(target=app.retention_loop, daemon=True).start()
     host, port = os.getenv("WEB_HOST", "0.0.0.0"), int(os.getenv("WEB_PORT", "8080"))
     print("Storigen %s listening on http://%s:%d (LINK_MODE=%s)" % (APP_VERSION, host, port, cfg["link_mode"]), flush=True)
     serve(app, host, port).serve_forever()

@@ -49,6 +49,7 @@ COLUMNS = [
     (10, "stories", "created_by_id",  "TEXT",    "v10.9.0: Blaze user number of the creator"),
     (10, "stories", "assigned_to",    "TEXT",    "v10.9.0: Blaze username the story is assigned to"),
     (10, "stories", "assigned_to_id", "TEXT",    "v10.9.0: Blaze user number it is assigned to"),
+    (11, "stories", "editor",         "TEXT",    "v10.9.5: the video editor's name: the text of the slug's comment in Blaze (the editors write their name there)"),
 ]
 SCHEMA_VERSION = max(v for v, *_ in COLUMNS)
 
@@ -72,6 +73,7 @@ class DB:
         self._migrate()
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_clip_name ON clip_ids(UPPER(COALESCE(name_id, display_id)))")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_clip_old_name ON clip_old_names(name)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_events_time ON events(time)")      # v10.9.5: the Recent activity tab asks for the last 1 / 2 / 4 hours
 
     def _migrate(self):
         """Bring an older database up to SCHEMA_VERSION (stored in PRAGMA user_version). A column that is already there is skipped, so a database made before versions existed (user_version 0) upgrades the same way, and its data is kept."""

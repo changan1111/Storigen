@@ -100,7 +100,7 @@ def test_97_14_montage_stories_get_an_id_but_the_tool_never_attaches_them(env, m
     f.medias = [media(11, rows["OPENING MONTAGE"]["name_id"] + ".mxf"), media(12, rows["HL FISHERMAN"]["name_id"] + ".mxf")]
     out = p.cycle(); assert [o["did"] if "did" in o else o.get("display_id") for o in out] and len(out) == 1 and "HL_FISHERMAN" in str(out[0]).upper()
 
-def test_97_15_the_server_reports_10_4_0(nm): assert nm.call("GET", "/api/config")[1]["version"] == "10.9.3"
+def test_97_15_the_server_reports_10_4_0(nm): assert nm.call("GET", "/api/config")[1]["version"] == "10.9.6"
 
 def test_97_16_spaces_dashes_and_underscores_are_the_same_in_a_file_name():
     p = w.parse_name

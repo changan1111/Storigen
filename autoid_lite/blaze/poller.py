@@ -160,7 +160,7 @@ class Poller(MediaMixin, AttachMixin, ReportMixin, ScriptMixin, RunMixin):
             reg_try += 1; start = (self.show_meta.get(show) or {}).get("start") or None
             try:
                 r = self.a.call("/svc/rundowns/sync", {"blaze_rundown_id": show, "rundown_name": sname, "rundown_start": start, "stories": [
-                    {"blaze_story_id": x["story_id"], "slug": x["title"], "slug_id": x["slug_id"], "position": x["pos"], "story_title": x.get("story_title") or self.store.story_title(x["story_id"]) or None} for x in keep]})
+                    {"blaze_story_id": x["story_id"], "slug": x["title"], "slug_id": x["slug_id"], "position": x["pos"], "story_title": x.get("story_title") or self.store.story_title(x["story_id"]) or None, "editor": x.get("editor")} for x in keep]})
                 self.synced[show] = True; self.synced_at[show] = now
                 if r.get("created") or r.get("removed"): say("show %s (%s): %d stories, %d new, %d removed, %d clips held" % (show, sname, r["stories"], r["created"], r["removed"], len(r["held"])))
             except Exception as e: self.synced[show] = False; reg_fail += 1; self.reg_err = "%s: %s" % (type(e).__name__, e)

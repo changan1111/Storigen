@@ -2,6 +2,9 @@
 
 One line per release, newest first. Each link has the full notes. Internal names such as autoid.py and autoid.env were kept on purpose through the Storigen rename.
 
+* [v10.9.6 - editor filter in the Ready feed; desktop app (Electron) in `electron/`](CHANGES_v1096.md)
+* [v10.9.5 - editor name from the Blaze slug comment: filter, search, CSV column; tabs (Ready feed, Recent activity 1/2/4 h, Users); the editor also shown in the feed's Assigned to column](CHANGES_v1095.md)
+* [v10.9.4 - history kept 7 days (AUTOID_KEEP_DAYS, nightly clean-up with a backup and compaction); sort the rundown by #, title, status; Removed filter and Hide removed; updated stamp](CHANGES_v1094.md)
 * [v10.9.3 - PROGRAMS, PROMOS and ADS files are found and attached: the media list is read once per group (BLAZE_MEDIA_GROUPS), a Blaze that does not know the filter is detected, new `blaze_poll.py groups` command](CHANGES_v1093.md)
 * [v10.9.2 - a story renamed in Blaze (new story ID in the same slug) is updated in place instead of struck out; its waiting clip keeps its ID and takes the new name](CHANGES_v1092.md)
 * [v10.9.1 - a story renamed in Blaze takes its clip name with it (clips still waiting for a file get the new name; the old name is refused with the reason; internal ID unchanged)](CHANGES_v1091.md)

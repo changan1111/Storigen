@@ -56,7 +56,7 @@ class AuthMixin:
     def a_me(self, r): return r.user
     def manual_enabled(self): return self.cfg["link_mode"] == "placeholder" or self.cfg["allow_manual"] == "1"
     def a_config(self, r):
-        return {"story_url": self.cfg["story_url"], "version": APP_VERSION, "link_mode": self.cfg["link_mode"], "watcher_enabled": self.cfg["watcher_enabled"], "manual_enabled": self.manual_enabled(), "quick_attach": self.cfg["quick_attach"], "script_labels": self.cfg["script_labels"], "preview": os.getenv("PREVIEW_ENABLED", "1") != "0", "version_suffix": suffix_on()}
+        return {"story_url": self.cfg["story_url"], "version": APP_VERSION, "link_mode": self.cfg["link_mode"], "watcher_enabled": self.cfg["watcher_enabled"], "manual_enabled": self.manual_enabled(), "quick_attach": self.cfg["quick_attach"], "script_labels": self.cfg["script_labels"], "preview": os.getenv("PREVIEW_ENABLED", "1") != "0", "version_suffix": suffix_on(), "keep_days": self.cfg.get("keep_days", 7)}
     def admins_still_valid(self, cur, excluding):
         t = self.local_today()
         for p in cur.q("SELECT * FROM users WHERE role='admin' AND id<>?", (excluding,)):

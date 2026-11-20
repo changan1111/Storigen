@@ -29,6 +29,7 @@ class ServiceMixin:
             for st in b.get("stories") or []:
                 if not st.get("blaze_story_id"): continue
                 _, c, rs = self.upsert_story_row(cur, rid, st["blaze_story_id"], st.get("slug") or "", opt(st.get("slug_id")), opt(st.get("position")), st.get("story_title") or None, notes=notes, old_key=moved.get(st["blaze_story_id"])); seen.append(st["blaze_story_id"]); created += c; restored += rs
+                if st.get("editor") is not None: cur.x("UPDATE stories SET editor=? WHERE rundown_id=? AND blaze_story_id=? AND COALESCE(editor,'')<>?", (str(st["editor"]).strip()[:120] or None, rid, str(st["blaze_story_id"]), str(st["editor"]).strip()[:120]))      # v10.9.5: the slug comment (the editor's name); an empty comment clears it, a list without the field (None) never wipes it
             ids, held = self.remove_stories(cur, rid, "rundown replaced", keep=seen)
             if created or restored or ids or held: self.log(cur, "mos", "rundown_synced", {"rundown": b["blaze_rundown_id"], "stories": len(seen), "created": created, "restored": restored, "removed": len(ids), "held": held})
         self.tell_renames(notes, b.get("rundown_name") or b["blaze_rundown_id"])

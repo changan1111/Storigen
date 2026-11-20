@@ -3,7 +3,7 @@ from __future__ import annotations
 from .config import data_dir
 import os, re
 
-APP_VERSION = "10.9.3"
+APP_VERSION = "10.9.6"
 from .states import STATES  # noqa: F401  (defined once in states.py)
 HOLD = "STORY REMOVED: "        # attach_error prefix of every clip held because its Blaze story is no longer in the rundown
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -26,7 +26,12 @@ def settings_from_env(env=None):
     if g("WATCHER_ENABLED", "1") == "0": comps = [c for c in comps if c != "watcher"]            # v9.12: a switched-off watcher is never checked, even if HEALTH_COMPONENTS lists it
     mode = g("LINK_MODE", "placeholder").strip().lower()
     if mode not in ("placeholder", "story_id"): raise SystemExit("LINK_MODE must be placeholder or story_id (got %r)" % mode)
-    return {"link_mode": mode, "api_key": g("SERVICE_API_KEY"), "secret": g("SESSION_SECRET"), "tz": g("AUTOID_TZ").strip(), "day_start": g("BROADCAST_DAY_START", "05:00"),
+    try: keep = int(g("AUTOID_KEEP_DAYS", "7").strip() or "7")
+    except ValueError: raise SystemExit("AUTOID_KEEP_DAYS must be a whole number of days (7), or 0 to keep everything (got %r)" % g("AUTOID_KEEP_DAYS"))
+    if not 0 <= keep <= 3650: raise SystemExit("AUTOID_KEEP_DAYS must be 0 (keep everything) or 1 to 3650 (got %d)" % keep)
+    pat = g("AUTOID_PURGE_AT", "03:30").strip()
+    if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", pat): raise SystemExit("AUTOID_PURGE_AT must be a time like 03:30 (got %r)" % pat)
+    return {"keep_days": keep, "purge_at": pat, "link_mode": mode, "api_key": g("SERVICE_API_KEY"), "secret": g("SESSION_SECRET"), "tz": g("AUTOID_TZ").strip(), "day_start": g("BROADCAST_DAY_START", "05:00"),
             "valid_required": g("VALID_UPTO_REQUIRED", "1") != "0", "session_secs": int(g("SESSION_SECONDS", "43200")), "story_url": g("BLAZE_STORY_URL_TEMPLATE"),
             "admin_contact": g("ADMIN_CONTACT").strip(), "components": comps, "watcher_enabled": g("WATCHER_ENABLED", "1") != "0", "blaze_silent": int(g("BLAZE_SILENT_SECS", "300")), "stale": int(g("STALE_SECS", "90")),
             "move_hint": int(g("MOVE_HINT_SECS", "600")), "cookie_secure": g("COOKIE_SECURE", "0") == "1", "allow_manual": g("ALLOW_MANUAL", ""), "quick_attach": g("QUICK_TEST_BUTTON", "1") != "0", "reports_dir": g("BLAZE_REPORT_DIR") or str(data_dir() / "reports"),
