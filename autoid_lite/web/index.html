@@ -177,6 +177,12 @@ body.fd-dock #toasts{bottom:calc(min(42vh,420px) + 1rem)}body.fd-min #toasts{bot
 .nav{flex-wrap:wrap}#nav [data-tab]{cursor:pointer}
 #feed.tab{position:static;width:auto;height:auto;margin:.6rem 0 0;border:1px solid var(--bd);border-radius:10px;box-shadow:none;z-index:auto}#feed.tab #feedmin,#feed.tab #feedmax,#feed.tab #feedx{display:none}#feed.tab #flist{overflow:visible;flex:none}
 #feeddock{padding:.15rem .6rem}.eh{display:flex;gap:.9rem;align-items:center;flex-wrap:wrap}.eh h2{margin:1.2rem 0 .4rem}#ev td.t{white-space:nowrap}
+/* v10.9.6: the header with the tabs stays on screen while the page scrolls; things that were sticky at the top of the page sit just below it (--hh = its height, set by the script) */
+.hdr{position:sticky;top:0;z-index:30}
+html{scroll-padding-top:calc(var(--hh,0px) + env(safe-area-inset-top,0px))}
+.bul,.split.grp>.bul{top:calc(var(--hh,0px) + .5rem)}
+.split.grp>.bul{max-height:calc(100vh - var(--hh,0px) - 1rem)}
+#feed.tab #flist th{top:var(--hh,0px)}
 </style></head><body>
 <div id="login" class="hide">
   <div class="lg-card">
@@ -633,4 +639,5 @@ setInterval(()=>{if(me&&lastOk&&!paused&&Date.now()-lastOk>20000){setText($("#su
 document.querySelectorAll("#nav [data-tab]").forEach(b=>b.onclick=()=>{if(b.dataset.tab!==tab)setTab(b.dataset.tab)});
 document.querySelectorAll("#nav [data-go]").forEach(b=>b.onclick=()=>{if(pgTab!=="rundown")setTab("rundown");const t=$(b.dataset.go);if(t)t.scrollIntoView({behavior:"smooth",block:"start"})});      // Stories / Media: back to the Rundown pgTab, then to that pane
 $("#evh").value=String(evHours);$("#evh").onchange=()=>{evHours=Number($("#evh").value)||1;lsSet("autoid_evh",String(evHours));loadTab().catch(()=>{})};
+(function(){const h=document.querySelector(".hdr");if(!h)return;const set=()=>document.documentElement.style.setProperty("--hh",h.offsetHeight+"px");set();addEventListener("resize",set);if(window.ResizeObserver)new ResizeObserver(set).observe(h)})();      // v10.9.6: height of the sticky header
 </script></body></html>
