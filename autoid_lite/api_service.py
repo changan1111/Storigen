@@ -1,6 +1,6 @@
 """Server methods for the feeds (poller, watcher, MOS gateway): story sync, files, media, attach confirmation, quick-attach, status."""
 from __future__ import annotations
-from .ids import check_char, enc_version, id_format, kind_of, name_base, norm_name, split_suffix, vlabel
+from .ids import check_char, enc_version, id_format, kind_of, name_base, name_id, norm_name, split_suffix, vlabel
 import datetime as dt, json, time
 from .db import now_iso
 from .common import APP_VERSION, HttpError, STATES, opt
@@ -107,6 +107,16 @@ class ServiceMixin:
         except (TypeError, ValueError): return False
         if st.tzinfo is None: st = st.replace(tzinfo=dt.timezone.utc)
         return (dt.datetime.now(dt.timezone.utc) - st).total_seconds() > ServiceMixin.AIRED_GRACE_MIN * 60
+    @staticmethod
+    def renamed_plain(cur, base):
+        """v10.9.9 (VERSION_SUFFIX=on): the story was renamed in Blaze after its clip was attached. The attached clip keeps its old name (the file carries it), so no clip is called `base` any more.
+        base = DDMMYY_NEW_TITLE: the stories of that day whose CURRENT title makes this name, and their ordinary clip (version 1), stand in for the plain clip. Nothing is changed here; the caller adds the _V01 / _U01 clip."""
+        try: day = dt.datetime.strptime(base[:6], "%d%m%y").date()
+        except ValueError: return []
+        out = []
+        for x in cur.q("SELECT c.*, s.slug AS _slug, s.blaze_story_id AS _skey FROM clip_ids c JOIN stories s ON s.id=c.story_id WHERE c.day=? AND c.version=1 AND s.deleted=0 ORDER BY c.id", (day.isoformat(),)):
+            if name_id(day, x["_slug"], x["_skey"]).upper() == base.upper(): out.append(x)
+        return out
     def auto_versions(self, cur, name):
         """v10.5.0, VERSION_SUFFIX=on: the file 111126_FIRE_U02.mxf has been seen and no clip of that name exists. When the plain clip 111126_FIRE exists, the stories that hold it get a clip entry for this
         version (under the same day and number as the plain clip, so the database's own uniqueness stops a second one). Nothing else changes.
@@ -115,7 +125,8 @@ class ServiceMixin:
         Returns the new rows, or [] when the name has no suffix, the plain clip is unknown (a typo stays a 404), the number is not the next one, or the ID format is legacy."""
         sp = split_suffix(norm_name(name))
         if not sp or id_format() != "name": return []
-        base, kind, n = sp; ver = enc_version(kind, n); plain = self.name_rows(cur, base)
+        base, kind, n = sp; ver = enc_version(kind, n); plain = self.name_rows(cur, base); renamed = False
+        if not plain: plain = self.renamed_plain(cur, base); renamed = bool(plain)      # v10.9.9: a story renamed in Blaze AFTER its clip was attached keeps the old clip name: find it by the story's CURRENT title
         if not plain: return []
         top = 0
         for x in cur.q("SELECT version, COALESCE(name_id, display_id) AS nm FROM clip_ids WHERE UPPER(COALESCE(name_id, display_id)) LIKE ? ESCAPE '\\'", (base.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "\\_%",)):
@@ -127,6 +138,7 @@ class ServiceMixin:
             st = cur.one("SELECT s.slug, s.deleted, ru.start_at FROM stories s JOIN rundowns ru ON ru.id=s.rundown_id WHERE s.id=?", (x["story_id"],))
             if not st or st["deleted"] or cur.one("SELECT id FROM clip_ids WHERE story_id=? AND version=?", (x["story_id"], ver)): continue
             live.append((st["start_at"] or "", x, st))
+        if renamed and not live: self.refused[name] = "the story already has %s under its old clip name: use that name, or take the existing clip" % vlabel(ver); return []
         live.sort(key=lambda t: (t[0], t[1]["id"])); targets = [t for t in live if not self.aired(t[0])] or live[-1:]
         made = [self.new_clip(cur, x["story_id"], st["slug"], dt.date.fromisoformat(x["day"]), x["seq"], ver, name="%s_%s%02d" % (base, kind, n)) for _, x, st in targets]
         if made: self.log(cur, "watcher", "version_auto", {"name_id": made[0]["name_id"], "kind": kind, "stories": len(made), "skipped_aired": len(live) - len(targets), "from_file": True})
