@@ -34,8 +34,10 @@ class ScriptMixin:
         for i in range(0, len(send), 50):
             chunk = send[i:i + 50]
             try:
-                self.a.call("/svc/scripts", {"stories": chunk}); sent += len(chunk)
-                for x in chunk: self.script_sig[x["blaze_story_id"]] = sig(got[x["blaze_story_id"]])
+                res = self.a.call("/svc/scripts", {"stories": chunk}); sent += len(chunk)
+                miss = set(res.get("unknown") or []) if isinstance(res, dict) else set()           # v10.9.9: the registry did not know these stories yet (the rundown sync had not created them): not remembered, so they are sent again after BLAZE_SCRIPT_SECS
+                for x in chunk:
+                    if x["blaze_story_id"] not in miss: self.script_sig[x["blaze_story_id"]] = sig(got[x["blaze_story_id"]])
             except Exception as e:                                                       # the registry did not take it: those stories are sent again next round
                 for x in chunk: got.pop(x["blaze_story_id"], None)
                 if "scripts" not in self.said: self.said.add("scripts"); say("could not send story scripts to the registry (%s: %s): they are sent again next round" % (type(e).__name__, e))

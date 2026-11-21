@@ -30,12 +30,19 @@ class ServiceMixin:
                 if not st.get("blaze_story_id"): continue
                 _, c, rs = self.upsert_story_row(cur, rid, st["blaze_story_id"], st.get("slug") or "", opt(st.get("slug_id")), opt(st.get("position")), st.get("story_title") or None, notes=notes, old_key=moved.get(st["blaze_story_id"])); seen.append(st["blaze_story_id"]); created += c; restored += rs
                 if st.get("editor") is not None: cur.x("UPDATE stories SET editor=? WHERE rundown_id=? AND blaze_story_id=? AND COALESCE(editor,'')<>?", (str(st["editor"]).strip()[:120] or None, rid, str(st["blaze_story_id"]), str(st["editor"]).strip()[:120]))      # v10.9.5: the slug comment (the editor's name); an empty comment clears it, a list without the field (None) never wipes it
+            self.fill_scripts_from_siblings(cur, rid)                       # v10.9.9: a story that sits in several bulletins gets the script its other rows already have
             ids, held = self.remove_stories(cur, rid, "rundown replaced", keep=seen)
             if created or restored or ids or held: self.log(cur, "mos", "rundown_synced", {"rundown": b["blaze_rundown_id"], "stories": len(seen), "created": created, "restored": restored, "removed": len(ids), "held": held})
         self.tell_renames(notes, b.get("rundown_name") or b["blaze_rundown_id"])
         if held: self.alert("Rundown %s: %d stories removed in Blaze; %d clips already on Nitro are now NEEDS DESK (%s). Desk: check them before attaching." %
                             (b.get("rundown_name") or b["blaze_rundown_id"], len(ids), len(held), ", ".join(held[:8]) + (" ..." if len(held) > 8 else "")))
         return {"stories": len(seen), "created": created, "restored": restored, "removed": len(ids), "held": held}
+    def fill_scripts_from_siblings(self, cur, rid):
+        """v10.9.9: one Blaze story in several bulletins has one row per bulletin. The poller reads the script once and remembers it as sent, so a row added to another bulletin AFTER that read stayed on "Script not read from Blaze yet".
+        Now every row of this rundown that has no script yet takes the script of a sibling row (same Blaze story ID) that already has one. A real read from Blaze still overwrites it later (the poller updates every row of the story)."""
+        sib = "SELECT {c} FROM stories s2 WHERE s2.blaze_story_id=stories.blaze_story_id AND s2.script_at IS NOT NULL ORDER BY s2.script_at DESC LIMIT 1"
+        cur.x("UPDATE stories SET online_script=(%s), anchor_script=(%s), script_items=(%s), script_at=(%s) WHERE rundown_id=? AND script_at IS NULL AND EXISTS (SELECT 1 FROM stories s2 WHERE s2.blaze_story_id=stories.blaze_story_id AND s2.script_at IS NOT NULL)"
+              % tuple(sib.format(c=c) for c in ("s2.online_script", "s2.anchor_script", "s2.script_items", "s2.script_at")), (rid,))
     def adopt_replaced(self, cur, rid, stories):
         """v10.9.2: Blaze gives a story renamed in the rundown a NEW story ID in the same slug. Without this the old story was struck out (removed) and a second row was made. Now, when a story ID we do not know takes over a slug that
         holds a story that is no longer listed, and every clip of that old story is still WAITING_FOR_CLIP (no file seen, nothing sent), the old row is kept and moves to the new story ID: its clip keeps its ID and, through the
@@ -188,15 +195,16 @@ class ServiceMixin:
                 for k in ("online", "anchor"): e[k] = txt(i.get(k))[: left[k]]; left[k] -= len(e[k])
                 if e["online"] or e["anchor"]: out.append(e)
             return json.dumps(out, ensure_ascii=False)
-        n = 0
+        n = 0; unknown = []                                                                     # v10.9.9: stories the registry does not hold (yet): the poller must send those again, not remember them as done
         with self.db.tx() as cur:
             for x in b["stories"][:200]:
                 if not isinstance(x, dict) or not x.get("blaze_story_id"): continue
+                if not cur.one("SELECT 1 AS k FROM stories WHERE blaze_story_id=?", (str(x["blaze_story_id"]),)): unknown.append(str(x["blaze_story_id"])); continue
                 o, a, it = txt(x.get("online")), txt(x.get("anchor")), items_of(x.get("items"))
                 n += cur.x("UPDATE stories SET online_script=?, anchor_script=?, script_items=COALESCE(?,script_items), script_at=? WHERE blaze_story_id=? AND (script_at IS NULL OR COALESCE(online_script,'')<>? OR COALESCE(anchor_script,'')<>? OR (? IS NOT NULL AND COALESCE(script_items,'')<>?))", (o, a, it, now_iso(), str(x["blaze_story_id"]), o, a, it, it))
                 who = [str(x.get(k) or "").strip()[:80] or None for k in ("created_by", "created_by_id", "assigned_to", "assigned_to_id")]      # v10.9.0: sent by the same read; a field the story does not carry never wipes what is stored
                 if any(who): cur.x("UPDATE stories SET created_by=COALESCE(?,created_by), created_by_id=COALESCE(?,created_by_id), assigned_to=COALESCE(?,assigned_to), assigned_to_id=COALESCE(?,assigned_to_id) WHERE blaze_story_id=?", (*who, str(x["blaze_story_id"])))
-        return {"ok": True, "updated": n}
+        return {"ok": True, "updated": n, "unknown": unknown}
     def s_media(self, r):
         """The poller found this clip's file in Blaze's media list (its mosObjectId): the NITRO stage turns green. Records the fact only; it changes no state and attaches nothing."""
         b = r.body; self.need(b, "display_id", "media_id"); mid = str(b["media_id"])[:64]; mname = (str(b.get("media_name") or "").strip()[:200]) or None; push = None
