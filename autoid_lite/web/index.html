@@ -560,9 +560,9 @@ async function loadRetention(force){if(!force&&Date.now()-retAt<60000)return;ret
   const l=r.last,t=l&&l.at?new Date(l.at).toLocaleString("en-GB",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}):"";
   const box=$("#dbinfo"),sgR=JSON.stringify([r.db_mb,r.keep_days,r.keeps_from,r.purge_at,l&&l.at,l&&l.clips,can("users")]);if(sgR===box.dataset.sg)return;box.dataset.sg=sgR;box.replaceChildren(document.createTextNode("Database "+r.db_mb+" MB · "+(r.keep_days>0?"history kept "+r.keep_days+" days (from "+r.keeps_from+"), cleaned daily at "+r.purge_at:"history is kept for ever (AUTOID_KEEP_DAYS=0)")+(l?" · last cleanup "+t+(l.clips?": removed "+l.clips+" clips":": nothing to remove"):" · not cleaned yet")+" "));
   if(can("users")&&r.keep_days>0){const b=el("button","link","Clean up now");b.type="button";b.onclick=async()=>{if(!confirm("Delete everything older than "+r.keep_days+" days now?\nA copy of the database is saved first, and nothing newer is touched."))return;b.disabled=true;try{const o=await post("/api/retention/run");alert("Removed "+o.clips+" clips, "+o.stories+" stories, "+o.events+" events. Database "+o.db_mb_before+" MB -> "+o.db_mb_after+" MB.");loadRetention(true)}catch(e){alert(e.message)}b.disabled=false};box.append(b)}}
-function renderBul(){const f=$("#showf"),sg=JSON.stringify(bulletins.map(x=>[x.id,x.name,x.start,x.m,x.nitro,x.attn]))+"|"+showf;if(sg===sigBul)return;sigBul=sg;f.replaceChildren();
+function renderBul(){const f=$("#showf"),sg=JSON.stringify(bulletins.map(x=>[x.id,x.name,x.start,x.m,x.nitro,x.attn,x.done,x.n,x.d]))+"|"+filter+"|"+showf;if(sg===sigBul)return;sigBul=sg;f.replaceChildren();
   if(!bulletins.length){f.append(el("option",null,"No bulletins"))}
-  for(const x of bulletins){const o=el("option",null,"Bulletin "+(fmtHM(x.start)||"")+" · "+(x.name||"Show "+x.id)+" ("+x.m+")"+(x.nitro?" · "+x.nitro+" ready":"")+(x.attn?" · "+x.attn+" attention":""));o.value=x.id;f.append(o)}f.value=showf}
+  for(const x of bulletins){const o=el("option",null,"Bulletin "+(fmtHM(x.start)||"")+" · "+(x.name||"Show "+x.id)+" · "+(x.done||0)+"/"+((x.n||0)-(x.d||0))+" attached"+(filter!=="all"?" · "+x.m+" shown":"")+(x.nitro?" · "+x.nitro+" ready":"")+(x.attn?" · "+x.attn+" attention":""));o.value=x.id;f.append(o)}f.value=showf}
 function upFilter(f){const q=f.querySelector(".ups").value.trim().toLowerCase(),box=f.querySelector(".upl");let n=0;      // v10.9.0: type to narrow the list (any part of the username, any letter case); the ticks stay even for names the search hides
   for(const l of box.querySelectorAll("label")){const hit=!q||l.querySelector("input").value.toLowerCase().includes(q);l.style.display=hit?"":"none";if(hit)n++}
   const old=box.querySelector(".none");if(old)old.remove();if(q&&!n)box.append(el("div","none","No match"))}
@@ -580,7 +580,7 @@ document.addEventListener("click",e=>{for(const d of document.querySelectorAll("
 function renderEditors(){userOpts($("#editf"),editors,editf,"All editors",v=>{setEditor(v);page=1;sigBul="";load()},x=>x.name+" ("+x.n+")")}
 function renderUsers(){userOpts($("#userf"),users,userf,"All users",v=>{setUser(v);page=1;sigBul="";load()})}
 const byLine=c=>[c.editor?"Editor "+c.editor:"",c.created_by?"Created by "+c.created_by:"",c.assigned_to?"Assigned to "+c.assigned_to:""].filter(Boolean).join(" · ");
-function row(c){const r=el("div","sr"+(sel===c.id?" sel":"")+(c.deleted?" gone":""));r.tabIndex=0;const t=el("span","tt",c.story_title||c.slug||c.display_id);t.dir="auto";t.title=(c.slug||"")+(byLine(c)?"\n"+byLine(c):"");
+function row(c){const r=el("div","sr"+(sel===c.id?" sel":"")+(c.deleted?" gone":""));r.tabIndex=0;const t=el("span","tt",c.slug||c.story_title||c.display_id);t.dir="auto";t.title=((c.story_title&&c.story_title!==c.slug)?"Story name: "+c.story_title:"")+(byLine(c)?"\n"+byLine(c):"");
   r.append(el("span","n",c.position!=null?String(c.position).padStart(2,"0"):""),t,el("span","tag "+c.state,SL(c.state)));
   r.onclick=()=>openStory(c.id);r.onkeydown=e=>{if(e.key==="Enter"&&e.target===r)openStory(c.id)};return r}
 const rowNodes=new Map();      // story id -> {sig, node}: a row is rebuilt only when its own data (or its selected state) changed
@@ -616,7 +616,7 @@ function renderMid(c,keep){const m=$("#mid"),L=cfg.script_labels||["Online scrip
   mk("A-",()=>{fs=Math.max(.8,fs-.1);lsSet("autoid_fs",fs);renderMid(c,true)});mk("A",()=>{fs=1.1;lsSet("autoid_fs",fs);renderMid(c,true)});mk("A+",()=>{fs=Math.min(2,fs+.1);lsSet("autoid_fs",fs);renderMid(c,true)});
   const lb=el("label",null,"Words per minute"),inp=el("input");inp.type="number";inp.min=40;inp.max=400;inp.step=5;inp.value=wpm;inp.title="Reading speed: the time shown beside every word count is words ÷ this number";
   inp.oninput=()=>{const v=Number(inp.value);if(v>=40&&v<=400){wpm=v;lsSet("autoid_wpm",v);refreshWpm()}};lb.append(inp);bar.append(fb,lb);
-  const body=el("div","sbody"),h3=el("h3",null,c.story_title||c.slug||"");h3.dir="auto";body.append(h3);
+  const body=el("div","sbody"),h3=el("h3",null,c.slug||c.story_title||"");h3.dir="auto";body.append(h3);
   if(!parts.length){const x=el("div","stx mut",c.script_at?"(empty in Blaze)":"Script not read from Blaze yet (the poller fills it in within a few minutes).");x.dir="auto";x.style.fontSize=fs+"rem";body.append(x)}
   const many=parts.length>1||(parts[0]&&parts[0].n>0);
   for(const p of parts){const bx=el("div","sitem"),h=el("div","sih"),w=wc(p.t),dw=el("span","dw",wlab(w)),cp=el("button",null,"Copy");dw.dataset.w=w;cp.onclick=()=>copy(p.t,cp);
