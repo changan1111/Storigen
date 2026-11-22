@@ -4,9 +4,10 @@ from pathlib import Path
 import contextlib
 import datetime as dt
 import json
+import re
 import time
 from .errors import BlazeError, SessionExpired
-from ..ids import kind_of, suffix_on, vlabel
+from ..ids import enc_version, kind_of, suffix_on, vlabel
 from .keys import age_secs, attach_call, attached_facts, clip_secs, ignored, media_key, rkey
 from .states import LIVE_STATES
 from .util import say
@@ -186,7 +187,11 @@ class AttachMixin:
         """The clips in the story that carry an OLDER version of this clip's ID (same date and number, lower _Vn): what a new version replaces."""
         key = rkey(r)
         if suffix_on() and kind_of(key and key[1]) == "V": return []                                # v10.5.0: a _Vn clip is ADDED, it replaces nothing
-        return [] if not key else [x for x in info["rows"] if (k := media_key(x["title"])) and k[0] == key[0] and k[1] < key[1] and not (suffix_on() and kind_of(k[1]) == "V")]
+        if not key: return []
+        same = [x for x in info["rows"] if (k := media_key(x["title"])) and k[0] == key[0] and k[1] < key[1] and not (suffix_on() and kind_of(k[1]) == "V")]
+        if same or not suffix_on() or kind_of(key[1]) != "U": return same
+        m = re.search(r"_V(\d+)$", key[0], re.I)                                                  # v10.9.9: Karth_V01_U01 replaces the ADDED clip Karth_V01 (and then Karth_V01_U02 replaces _U01)
+        return [x for x in info["rows"] if m and media_key(x["title"]) == (key[0][:m.start()], enc_version("V", m.group(1)))]
     def to_desk(self, r, why):
         try: self.a.call("/svc/files", {"display_id": r["display_id"], "state": "NEEDS_DESK", "error": why}); r["state"] = "NEEDS_DESK"; self.event("HANDED TO DESK", "clip %s: %s" % (r["display_id"], why))
         except Exception as e: say("could not tell Auto-ID about %s: %s" % (r["display_id"], e))

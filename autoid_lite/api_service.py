@@ -1,6 +1,6 @@
 """Server methods for the feeds (poller, watcher, MOS gateway): story sync, files, media, attach confirmation, quick-attach, status."""
 from __future__ import annotations
-from .ids import check_char, enc_version, id_format, kind_of, name_base, name_id, norm_name, split_suffix, vlabel
+from .ids import chain_version, check_char, enc_version, id_format, kind_of, name_base, name_id, norm_name, split_suffix, un_of, vlabel
 import datetime as dt, json, time
 from .db import now_iso
 from .common import APP_VERSION, HttpError, STATES, opt
@@ -86,7 +86,7 @@ class ServiceMixin:
                     sp = split_suffix(norm_name(name)); h = self.old_name_hint(cur, name); tail = ""
                     if not h and sp: h = self.old_name_hint(cur, sp[0]); tail = "_%s%02d" % (sp[1], sp[2])
                     if h: self.refused[name] = "this story was renamed in Blaze: the clip name is now %s%s, not %s. Name the file %s%s" % (h["cur"], tail, h["old"] + tail, h["cur"], tail)
-            if fresh: self.alert("%s detected from the file name: clip ID %s made for %d stor%s." % ("UPDATE (replaces the story's main clip)" if kind_of(rows[0]["version"]) == "U" else "NEW CLIP (added beside the clips already in the story)", rows[0]["name_id"], len(rows), "y" if len(rows) == 1 else "ies"))
+            if fresh: self.alert("%s detected from the file name: clip ID %s made for %d stor%s." % (("UPDATE (replaces the added clip %s)" % name_base(rows[0]["name_id"]).rsplit("_", 1)[-1] if rows[0]["version"] >= 10000 else "UPDATE (replaces the story's main clip)") if kind_of(rows[0]["version"]) == "U" else "NEW CLIP (added beside the clips already in the story)", rows[0]["name_id"], len(rows), "y" if len(rows) == 1 else "ies"))
             if not rows: raise HttpError(404, self.refused.pop(name, None) or "no such clip id")
             return dict(rows[0], group=[x["display_id"] for x in rows])      # one clip name can belong to several stories: the file event is applied to all of them
         try: d = dt.datetime.strptime(q["day"], "%Y%m%d").date(); seq = int(q["seq"]); ver = int(q.get("version", 1))
@@ -125,12 +125,13 @@ class ServiceMixin:
         Returns the new rows, or [] when the name has no suffix, the plain clip is unknown (a typo stays a 404), the number is not the next one, or the ID format is legacy."""
         sp = split_suffix(norm_name(name))
         if not sp or id_format() != "name": return []
-        base, kind, n = sp; ver = enc_version(kind, n); plain = self.name_rows(cur, base); renamed = False
+        base, kind, n = sp; ver = chain_version(base, kind, n); plain = self.name_rows(cur, base); renamed = False
+        if ver is None: self.refused[name] = "%s: numbers above 99 are not used" % name; return []
         if not plain: plain = self.renamed_plain(cur, base); renamed = bool(plain)      # v10.9.9: a story renamed in Blaze AFTER its clip was attached keeps the old clip name: find it by the story's CURRENT title
         if not plain: return []
         top = 0
         for x in cur.q("SELECT version, COALESCE(name_id, display_id) AS nm FROM clip_ids WHERE UPPER(COALESCE(name_id, display_id)) LIKE ? ESCAPE '\\'", (base.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "\\_%",)):
-            if kind_of(x["version"]) == kind and name_base(x["nm"]).upper() == base: top = max(top, x["version"] % 1000)      # not 111126_FIRE_2's own updates
+            if kind_of(x["version"]) == kind and name_base(x["nm"]).upper() == base: top = max(top, un_of(x["version"]))      # not 111126_FIRE_2's own updates
         if n != top + 1:
             self.refused[name] = "%s is not the next number: the next %s for %s is %s%02d" % (name, "update" if kind == "U" else "added clip", base, kind, top + 1); return []
         live = []
@@ -234,7 +235,7 @@ class ServiceMixin:
                 todo = [x for x, st in fresh if st != "ATTACHED"]                              # nobody needs telling about a clip that is already in the story
                 if todo:
                     i = cur.one("SELECT s.slug, s.story_title, ru.name AS rundown, c.version FROM clip_ids c JOIN stories s ON s.id=c.story_id JOIN rundowns ru ON ru.id=s.rundown_id WHERE c.id=?", (todo[0]["id"],)) or {}
-                    tag = {"U": "UPDATED clip READY on Nitro (will replace the main clip)", "V": "ADDED clip READY on Nitro (goes beside the clips already there)"}.get(kind_of(i.get("version")), "READY on Nitro")
+                    tag = {"U": "UPDATED clip READY on Nitro (will replace the %s)" % ("added clip" if (i.get("version") or 0) >= 10000 else "main clip"), "V": "ADDED clip READY on Nitro (goes beside the clips already there)"}.get(kind_of(i.get("version")), "READY on Nitro")
                     push = tag + ": %s | clip %s | MOS %s | media %s%s%s" % (i.get("story_title") or i.get("slug") or "-", c["name_id"] or c["display_id"], mid, mname or "-",
                            (" | " + i["rundown"]) if i.get("rundown") else "", (" | +%d more stor%s with this clip" % (len(todo) - 1, "y" if len(todo) == 2 else "ies")) if len(todo) > 1 else "")
         if push: self.ready_notify(push)

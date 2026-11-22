@@ -40,10 +40,21 @@ def suffix_on(): return os.getenv("VERSION_SUFFIX", "off").strip().lower() in ("
 def enc_version(kind, n): return (1000 if kind.upper() == "U" else 2000) + int(n)
 def kind_of(version):
     """'U' / 'V' for an encoded version, None for an ordinary clip or an old numbered version."""
-    v = int(version or 1); return "U" if 1000 < v < 2000 else "V" if 2000 < v < 3000 else None
+    v = int(version or 1); return "U" if 1000 < v < 2000 or 10000 <= v < 20000 else "V" if 2000 < v < 3000 else None      # 10000+: an update OF an added clip (Karth_V01_U02)
 def vlabel(version):
     """U02 / V01 for an encoded version, else the plain number."""
-    k = kind_of(version); return "%s%02d" % (k, int(version) % 1000) if k else str(version)
+    v = int(version or 1)
+    if 10000 <= v < 20000: return "V%02d_U%02d" % ((v - 10000) // 100, v % 100)
+    k = kind_of(version); return "%s%02d" % (k, v % 1000) if k else str(version)
+def un_of(version):
+    """The update number of a U clip: 3 for 1003 (Karth_U03) and for 10103 (Karth_V01_U03)."""
+    v = int(version or 1); return v % 100 if v >= 10000 else v % 1000
+def chain_version(base, kind, n):
+    """v10.9.9 (VERSION_SUFFIX=on): Karth_V01_U02 is the 2nd update OF the added clip Karth_V01, its own chain beside Karth_Un. Stored as 10000 + V*100 + U; None when a number is above 99.
+    Every other name keeps enc_version (1000+n / 2000+n)."""
+    m = kind.upper() == "U" and re.search(r"_V(\d+)$", base or "", re.I)
+    if not m: return enc_version(kind, n)
+    return 10000 + int(m.group(1)) * 100 + int(n) if int(m.group(1)) < 100 and int(n) < 100 else None
 def split_suffix(name):
     """With VERSION_SUFFIX=on: 111126_FIRE_U02 -> ('111126_FIRE', 'U', 2); None when the name has no _U/_V suffix or the switch is off."""
     m = suffix_on() and SUF_RE.search(name or "")

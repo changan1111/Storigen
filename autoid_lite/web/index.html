@@ -444,7 +444,7 @@ function navBar(){const n=el("div","pnav"),i=clips.findIndex(x=>x.id===sel),pv=e
 function clipBadge(c){      // v10.5.0 (VERSION_SUFFIX=on): which clip of the story this is (U02 = update, V01 = added) and how many clips the story has
   if(!cfg.version_suffix||!(c.vlabel||c.story_clips>1||c.replaced_label))return document.createTextNode("");
   const b=el("div","where");b.style.cssText="font-weight:600;color:#7a4b00";
-  b.textContent=(c.replaced_label?"REPLACED by "+c.replaced_label+" · ":"")+(c.vlabel?(c.vlabel[0]==="U"?"UPDATE ":"ADDED ")+c.vlabel+" · ":"")+(c.story_clips>1?c.story_clips+" clips in this story":"")+(c.story_update&&c.vlabel!==c.story_update?" · latest update "+c.story_update:"");
+  b.textContent=(c.replaced_label?"REPLACED by "+c.replaced_label+" · ":"")+(c.vlabel?(/(^|_)U\d+$/.test(c.vlabel)?"UPDATE ":"ADDED ")+c.vlabel+" · ":"")+(c.story_clips>1?c.story_clips+" clips in this story":"")+(c.story_update&&c.vlabel!==c.story_update?" · latest update "+c.story_update:"");
   return b}
 function card(c){
   const r=el("div","story"+(sel===c.id?" sel":""));const t=el("div","st");t.append(el("b",null,c.slug||c.display_id),el("span","tag "+c.state,c.state.replaceAll("_"," ")));r.append(t);
