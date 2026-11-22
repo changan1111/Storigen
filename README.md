@@ -43,7 +43,8 @@ Filename suffix versions require `ID_FORMAT=name` and `VERSION_SUFFIX=on`. Versi
 Operational rules:
 
 - Use the **next number in that chain**: create `U01` before `U02`, and `V01` before `V02`. Missing or out-of-order versions are refused. Keep suffix numbers in the documented `01`-`99` range; each number in a compound name such as `V01_U01` must be below 100.
-- Names are case-insensitive, and spaces or punctuation are normalized. Use the current story name shown by Storigen for new files after a Blaze story rename. Don't rename a file already in progress or attached.
+- For filename-to-clip matching, names are case-insensitive and runs of spaces, underscores, hyphens, or other punctuation are treated the same. For example, `221126_ELECTION_RESULTS.mxf`, `221126 election results.mxf`, and `221126-election-results.mxf` match the same clip name. The date and words must still match; this normalization does not make different story names interchangeable, and it does not necessarily apply to dashboard search.
+- Use the current story name shown by Storigen for new files after a Blaze story rename. Don't rename a file already in progress or attached.
 - A `U` update removes the previous clip attachment from the Blaze story only after verification; it does **not** mean the source media file was deleted. Keep source media according to station retention policy. File handling depends on watcher mode and its configured archive/retention settings.
 - The watcher must see the file for its name to be registered.
 
