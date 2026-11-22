@@ -28,6 +28,25 @@ Key operational rules from the project docs:
 - Keep the folder access read-only for Nitro/Playout unless the workflow explicitly requires live writes
 - Validate settings with the built-in `doctor` and `selftest` checks before going live
 
+## Clip filename and replacement rules
+
+Filename suffix versions require `ID_FORMAT=name` and `VERSION_SUFFIX=on`. Version suffixes are off by default. Use the date and file-safe story name shown by Storigen as the base; for example, `221126_ELECTION`. The examples below use `.mxf`; use an extension accepted by the configured watcher.
+
+| Purpose | Example filename | Behavior | Keep / replacement rule |
+|---|---|---|---|
+| Original clip | `221126_ELECTION.mxf` | The base clip for the story. | Keep as the original; don't overwrite it for a new edit. |
+| Add a clip | `221126_ELECTION_V01.mxf`, then `..._V02.mxf` | Adds a clip alongside the clips already in the story. A `V` clip never replaces another clip. | Keep the other clips; adding a `V` clip does not remove them. |
+| Update the main clip | `221126_ELECTION_U01.mxf`, then `..._U02.mxf` | Replaces the main clip or its preceding `U` update, after the new attachment is verified. | Don't manually remove the older attachment before verification. If there are multiple possible main clips to replace, the tool won't choose one; ask the desk to resolve it. |
+| Update an added clip | `221126_ELECTION_V01_U01.mxf`, then `..._V01_U02.mxf` | Updates the `V01` clip only. This is separate from the main clip's `_U01`, `_U02` chain. | Don't confuse `V01_U02` with the main clip's `U02`; they replace different clips. |
+| Update another added clip | `221126_ELECTION_V02.mxf`, then `..._V02_U01.mxf` | Adds `V02`, then updates only that `V02` clip. | Keep each `V` update chain separate. |
+
+Operational rules:
+
+- Use the **next number in that chain**: create `U01` before `U02`, and `V01` before `V02`. Missing or out-of-order versions are refused. Keep suffix numbers in the documented `01`-`99` range; each number in a compound name such as `V01_U01` must be below 100.
+- Names are case-insensitive, and spaces or punctuation are normalized. Use the current story name shown by Storigen for new files after a Blaze story rename. Don't rename a file already in progress or attached.
+- A `U` update removes the previous clip attachment from the Blaze story only after verification; it does **not** mean the source media file was deleted. Keep source media according to station retention policy. File handling depends on watcher mode and its configured archive/retention settings.
+- The watcher must see the file for its name to be registered.
+
 ## Repository layout
 
 - `autoid.py` — CLI entry point for init, doctor, run, selftest, status, and backup
