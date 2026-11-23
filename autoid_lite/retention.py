@@ -65,6 +65,7 @@ class RetentionMixin:
             with self.db.tx() as cur:
                 out["rundowns"] = cur.x("DELETE FROM rundowns WHERE NOT EXISTS (SELECT 1 FROM stories s WHERE s.rundown_id=rundowns.id) AND COALESCE(air_date,'')<?", (cutd,))
                 cur.x("DELETE FROM counters WHERE day<?", (cutd,))
+                cur.x("DELETE FROM support_jobs WHERE state NOT IN ('QUEUED','WORKING') AND substr(COALESCE(created_at,''),1,10)<?", (cutd,))      # v10.10.0: Quick Support requests that are over
             while True:                                                                     # the event log: the append-only lock is lifted only inside this one transaction and is back before it ends
                 with self.db.tx() as cur:
                     cur.x("DROP TRIGGER IF EXISTS events_no_delete")

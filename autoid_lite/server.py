@@ -18,9 +18,14 @@ from .api_auth import AuthMixin  # noqa: F401  (re-export: other code and the te
 from .api_dashboard import DashboardMixin  # noqa: F401  (re-export: other code and the tests use server.<name>)
 from .retention import RetentionMixin  # noqa: F401  (v10.9.4)
 from .api_service import ServiceMixin  # noqa: F401  (re-export: other code and the tests use server.<name>)
+from .api_bot import BotMixin  # noqa: F401  (v10.11.0 editor chatbot, read-only)
+from .api_insights import InsightsMixin  # noqa: F401  (v10.12.0 name coach, quality check, clip frames + AI summary, analytics; all read-only)
+from .api_features import FeaturesMixin  # noqa: F401  (v10.15.0 Missing-clip board + Bulletin smoke test, switched on / off from the page)
+from .api_blazeclips import BlazeClipsMixin  # noqa: F401  (v10.17.0 the full clip list of a story as Blaze holds it)
+from .api_support import SupportMixin  # noqa: F401  (v10.10.0 Quick Support)  (re-export: other code and the tests use server.<name>)
 from .common import APP_VERSION, EMAIL_RE, HOLD, HttpError, MAX_BODY, Req, STATES, norm, opt, removed_message, settings_from_env  # noqa: F401  (re-export: other code and the tests use server.<name>)
 
-class App(ServiceMixin, AuthMixin, DashboardMixin, RetentionMixin):
+class App(ServiceMixin, AuthMixin, DashboardMixin, RetentionMixin, SupportMixin, BotMixin, InsightsMixin, FeaturesMixin, BlazeClipsMixin):
     def __init__(self, cfg, db_path, web_dir=None):
         self.cfg = cfg; self.db = DB(db_path); self.web_dir = Path(web_dir or Path(__file__).parent / "web")
         if len(cfg["api_key"]) < 16 or len(cfg["secret"]) < 32:
@@ -31,12 +36,17 @@ class App(ServiceMixin, AuthMixin, DashboardMixin, RetentionMixin):
             ("POST", "/svc/stories", self.s_story, "svc"), ("POST", "/svc/rundowns/sync", self.s_sync, "svc"),
             ("POST", "/svc/stories/rename", self.s_rename, "svc"), ("POST", "/svc/stories/delete", self.s_delete, "svc"),
             ("GET", "/svc/match", self.s_match, "svc"), ("POST", "/svc/files", self.s_files, "svc"), ("POST", "/svc/heartbeat", self.s_heartbeat, "svc"), ("POST", "/svc/alert", self.s_alert, "svc"),
-            ("POST", "/svc/attach/confirm", self.s_confirm, "svc"), ("POST", "/svc/media", self.s_media, "svc"), ("POST", "/svc/replaced", self.s_replaced, "svc"), ("POST", "/svc/quickattach/result", self.s_qa_result, "svc"), ("POST", "/svc/why", self.s_why, "svc"), ("POST", "/svc/scripts", self.s_scripts, "svc"), ("GET", "/svc/status", self.s_status, "svc"), ("GET", "/svc/clips", self.s_clips, "svc"),
+            ("POST", "/svc/attach/confirm", self.s_confirm, "svc"), ("POST", "/svc/media", self.s_media, "svc"), ("POST", "/svc/replaced", self.s_replaced, "svc"), ("POST", "/svc/quickattach/result", self.s_qa_result, "svc"), ("POST", "/svc/why", self.s_why, "svc"), ("POST", "/svc/scripts", self.s_scripts, "svc"), ("POST", "/svc/story_clips", self.s_story_clips, "svc"), ("GET", "/svc/status", self.s_status, "svc"), ("GET", "/svc/support/jobs", self.s_sup_jobs, "svc"), ("POST", "/svc/support/result", self.s_sup_result_noted, "svc"), ("GET", "/svc/clips", self.s_clips, "svc"),
             ("POST", "/api/login", self.a_login, None), ("POST", "/api/logout", self.a_logout, None),
             ("GET", "/api/me", self.a_me, "view"), ("GET", "/api/config", self.a_config, "view"), ("GET", "/api/status", self.a_status, "view"),
             ("GET", "/api/clips", self.a_clips, "view"), ("GET", "/api/feed", self.a_feed, "view"), ("GET", "/api/rundowns", self.a_rundowns, "view"), ("POST", "/api/manual", self.a_manual, "create"),
             ("POST", r"/api/clips/(\d+)/version", self.a_version, "version"), ("GET", r"/api/clips/(\d+)/scope", self.a_scope, "view"), ("POST", r"/api/clips/(\d+)/delete_version", self.a_delete_version, "version"), ("POST", r"/api/clips/(\d+)/attached", self.a_attached, "attach"), ("POST", r"/api/clips/(\d+)/quickattach", self.a_quickattach, "attach"),
-            ("GET", r"/api/clips/(\d+)/history", self.a_history, "view"), ("GET", r"/api/clips/(\d+)/preview", self.a_preview, "view"), ("GET", "/api/events", self.a_events, "events"),
+            ("GET", r"/api/clips/(\d+)/history", self.a_history, "view"), ("GET", r"/api/clips/(\d+)/preview", self.a_preview, "view"), ("GET", "/api/blaze-clip/preview", self.a_hand_preview, "view"), ("GET", "/api/events", self.a_events, "events"),
+            ("GET", "/api/support/bulletins", self.a_sup_bulletins, "view"), ("GET", "/api/support/stories", self.a_sup_stories, "view"), ("GET", "/api/support/media", self.a_sup_media, "view"), ("GET", "/api/support/jobs", self.a_sup_jobs, "view"),
+            ("GET", r"/api/support/jobs/(\d+)", self.a_sup_job, "view"), ("POST", "/api/support/list", self.a_sup_list, "view"), ("POST", "/api/support/add", self.a_sup_add, "attach"), ("POST", "/api/support/remove", self.a_sup_remove, "attach"), ("POST", r"/api/support/jobs/(\d+)/cancel", self.a_sup_cancel, "attach"),
+            ("GET", "/api/bot/bulletins", self.a_bot_bulletins, "view"), ("GET", "/api/bot/stories", self.a_bot_stories, "view"), ("GET", "/api/bot/story", self.a_bot_story, "view"),
+            ("GET", "/api/bot/checkname", self.a_bot_checkname, "view"), ("GET", r"/api/clips/(\d+)/quality", self.a_quality, "view"), ("GET", r"/api/clips/(\d+)/frames", self.a_frames, "view"), ("GET", r"/api/clips/(\d+)/standards", self.a_standards, "view"), ("GET", "/api/analytics", self.a_analytics, "view"), ("GET", r"/api/scan/assets/([^/]+)", self.a_scan_asset, "view"),
+            ("GET", "/api/features", self.a_features, "view"), ("POST", "/api/features", self.a_features_set, "users"), ("GET", "/api/missing", self.a_missing, "view"), ("GET", "/api/smoke", self.a_smoke, "view"),
             ("GET", "/api/retention", self.a_retention, "view"), ("POST", "/api/retention/run", self.a_retention_run, "users"),
             ("GET", "/api/users", self.a_users, "users"), ("POST", "/api/users", self.a_add_user, "users"),
             ("PATCH", r"/api/users/([\w-]+)", self.a_edit_user, "users"), ("POST", r"/api/users/([\w-]+)/password", self.a_password, "users")]]
@@ -207,7 +217,7 @@ class Handler(BaseHTTPRequestHandler):
             finally: payload.release()
             return
         data = payload if isinstance(payload, bytes) else json.dumps(payload, default=str).encode()
-        self.send_response(status); self.send_header("Content-Type", ctype); self.send_header("Content-Length", str(len(data))); self.send_header("Cache-Control", "no-store")
+        self.send_response(status); self.send_header("Content-Type", ctype); self.send_header("Content-Length", str(len(data))); self.send_header("Cache-Control", "private, max-age=%d" % payload.max_age if getattr(payload, "max_age", None) else "no-store")      # v10.13.0: only the scan model files are cached by the browser
         self.send_header("X-Content-Type-Options", "nosniff")
         if req and getattr(req, "filename", None): self.send_header("Content-Disposition", 'attachment; filename="%s"' % req.filename)
         for c in (req.set_cookies if req else []): self.send_header("Set-Cookie", c)

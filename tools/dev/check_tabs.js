@@ -22,7 +22,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? "PASS " : "FAIL ") + m); 
     ok(!hid("#tab-rundown") && hid("#adminbox"), "a remembered Users tab falls back to the Rundown for someone who may not use it");
     console.log(fails ? "FAILED: " + fails : "ALL CHECKS PASSED"); process.exit(fails ? 1 : 0);
   }
-  ok(tabs().join() === "rundown,feed,activity,users", "an admin sees four tabs: " + tabs().join(", "));
+  ok(tabs().join() === "rundown,feed,support,missing,smoke,insights,activity,users", "an admin sees the tabs: " + tabs().join(", "));
   // Recent activity
   await click('[data-tab="activity"]');
   ok(hid("#tab-rundown") && !hid("#deskbox") && hid("#adminbox") && $('#nav [data-tab="activity"]').classList.contains("on") && w.localStorage.getItem("autoid_tab") === "activity", "Recent activity is a tab of its own, remembered in the browser");

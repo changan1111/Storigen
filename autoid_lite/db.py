@@ -1,6 +1,6 @@
 """SQLite storage. One connection guarded by a lock; every write runs inside BEGIN IMMEDIATE ... COMMIT (all or nothing)."""
 from __future__ import annotations
-import contextlib, sqlite3, threading, time
+import contextlib, sqlite3, sys, threading, time
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS rundowns(id INTEGER PRIMARY KEY, blaze_rundown_id TEXT UNIQUE NOT NULL, name TEXT, air_date TEXT);
@@ -17,6 +17,11 @@ CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY, time TEXT NOT NULL, ac
 CREATE TABLE IF NOT EXISTS heartbeats(component TEXT PRIMARY KEY, ts REAL NOT NULL, detail TEXT);
 CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, full_name TEXT, role TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1,
   valid_upto TEXT, pw_salt TEXT NOT NULL, pw_hash TEXT NOT NULL, created_at TEXT);
+CREATE TABLE IF NOT EXISTS support_jobs(id INTEGER PRIMARY KEY, kind TEXT NOT NULL, state TEXT NOT NULL, by_user TEXT, created_at TEXT, updated_at TEXT, expires_at TEXT,
+  blaze_rundown_id TEXT, rundown TEXT, blaze_story_id TEXT, story TEXT, media_id TEXT, media_name TEXT, blaze_clip_id TEXT, clip_title TEXT, msg TEXT, result TEXT);      -- v10.10.0 Quick Support: ADD / REMOVE / LIST requests the Blaze poller carries out
+CREATE INDEX IF NOT EXISTS idx_support_open ON support_jobs(state, kind);
+CREATE TABLE IF NOT EXISTS story_blaze_clips(blaze_story_id TEXT PRIMARY KEY, clips TEXT NOT NULL, seen_at TEXT);      -- v10.17.0: the FULL clip list of a story as the poller last read it from Blaze (so clips added by hand show on the dashboard and the chat sees them)
+CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT, updated_by TEXT);      -- v10.15.0: switches an admin changes on the page (Users > Features); no env file involved
 CREATE TRIGGER IF NOT EXISTS events_no_update BEFORE UPDATE ON events BEGIN SELECT RAISE(ABORT, 'events is append-only'); END;
 CREATE TRIGGER IF NOT EXISTS events_no_delete BEFORE DELETE ON events BEGIN SELECT RAISE(ABORT, 'events is append-only'); END;
 """
@@ -70,11 +75,21 @@ class DB:
         self.conn = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None, timeout=30)
         self.conn.row_factory = lambda cur, row: {d[0]: row[i] for i, d in enumerate(cur.description)}
         self.conn.execute("PRAGMA journal_mode=WAL"); self.conn.execute("PRAGMA foreign_keys=ON")
-        self.lock = threading.RLock(); self.conn.executescript(SCHEMA)
+        self.lock = threading.RLock(); self._retire_legacy_support(); self.conn.executescript(SCHEMA)
         self._migrate()
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_clip_name ON clip_ids(UPPER(COALESCE(name_id, display_id)))")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_clip_old_name ON clip_old_names(name)")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_events_time ON events(time)")      # v10.9.5: the Recent activity tab asks for the last 1 / 2 / 4 hours
+
+    def _retire_legacy_support(self):
+        """v10.10.1: the separate-worker Support build made a `support_jobs` table with other columns (status, created_by, ...). CREATE TABLE IF NOT EXISTS would keep it, and the index on `state` would then stop the database from opening.
+        It only holds a short request history, so it is renamed (kept, not deleted: DROP TABLE support_jobs_legacy removes it) and the table this version uses is made fresh."""
+        cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(support_jobs)").fetchall()}
+        if not cols or "state" in cols: return
+        names = {r["name"] for r in self.conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}; new = "support_jobs_legacy"
+        while new in names: new += "_"
+        self.conn.execute("ALTER TABLE support_jobs RENAME TO %s" % new)
+        print("database: an older Support table was found (columns: %s): kept as %s, a new support_jobs table is used" % (", ".join(sorted(cols))[:80], new), file=sys.stderr)
 
     def _migrate(self):
         """Bring an older database up to SCHEMA_VERSION (stored in PRAGMA user_version). A column that is already there is skipped, so a database made before versions existed (user_version 0) upgrades the same way, and its data is kept."""

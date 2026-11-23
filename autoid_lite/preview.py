@@ -1,8 +1,9 @@
 """v10.1.0: play a clip from the Nitro ONAIR folder in the dashboard. Nothing is stored: every Play converts the MXF to a small H.264 stream with ffmpeg
 and sends it straight to the browser (no cache, no temp file, nothing written in the project). It only runs when someone clicks Play, at low CPU
 priority, one at a time by default (PREVIEW_MAX_JOBS), and it stops the moment the browser stops watching."""
-import os, shutil, subprocess, sys, threading
+import datetime as dt, os, re, shutil, subprocess, sys, threading
 from .common import HttpError
+from .ids import norm_name
 
 _slots = {"n": 0, "sem": None}; _lock = threading.Lock()
 
@@ -27,6 +28,44 @@ def check_path(p):
     if not (real == root or real.startswith(root + os.sep)): raise HttpError(403, "This file is outside the Nitro folder")
     if not os.path.isfile(real): raise HttpError(404, "The file is not reachable now (Nitro folder not mounted, or the file was moved)")
     return real
+
+def find_nitro_file(title):
+    """v10.18.0: look for the Nitro file of a clip that Storigen did not make (added with + / Add media, or by hand), by its NAME. -> (path or None, text saying where it looked).
+    Looked up fresh on every Play, remembered nowhere. It uses the settings the watcher uses: NITRO_DIR, NITRO_DATE_PATH (the day folders: today, and NITRO_SCAN_DAYS_BACK / _AHEAD around it),
+    NITRO_EXTS and NITRO_SCAN_DEPTH. Spaces, dashes, underscores and capitals do not matter in the name (the same rule the whole tool uses). The newest file wins if there are several."""
+    root = os.getenv("NITRO_DIR", "")
+    if not root: raise HttpError(503, "NITRO_DIR is not set for the web service, so Storigen does not know where the Nitro files are")
+    if not os.path.isdir(root): raise HttpError(404, "The Nitro folder is not reachable now (not mounted?)")
+    exts = tuple(e.strip().lower() for e in os.getenv("NITRO_EXTS", ".mxf").split(",") if e.strip()) or (".mxf",)
+    try: depth, back, ahead = int(os.getenv("NITRO_SCAN_DEPTH", "3") or 3), int(os.getenv("NITRO_SCAN_DAYS_BACK", "1") or 1), int(os.getenv("NITRO_SCAN_DAYS_AHEAD", "1") or 1)
+    except ValueError: depth, back, ahead = 3, 1, 1
+    pats = [x.strip() for x in os.getenv("NITRO_DATE_PATH", "").split("|") if x.strip()]
+    want = norm_name(re.sub(r"\.[A-Za-z0-9]{2,4}$", "", (title or "").strip()))
+    if not want: return None, "nothing (the clip has no usable name)"
+    roots = [root]
+    if pats:
+        today = dt.date.today(); roots = []
+        for k in sorted(range(-back, ahead + 1), key=abs):                      # today first, then the days around it
+            for pat in pats:
+                p = os.path.join(root, (today + dt.timedelta(days=k)).strftime(pat))
+                if os.path.isdir(p) and p not in roots: roots.append(p)
+        if not roots: return None, "no day folder for today under the Nitro folder (NITRO_DATE_PATH=%s)" % "|".join(pats)
+    best = []
+    def walk(d, level):
+        try: it = list(os.scandir(d))
+        except OSError: return
+        for e in it:
+            if e.name.startswith("."): continue
+            try:
+                if e.is_dir(follow_symlinks=False):
+                    if level < depth: walk(e.path, level + 1)
+                elif e.name.lower().endswith(exts) and norm_name(os.path.splitext(e.name)[0]) == want: best.append((e.stat().st_mtime, e.path))
+            except OSError: continue
+    for r in roots:
+        walk(r, 0)
+        if best: break                                                          # found in the first (closest) day folder: no need to look further
+    where = ", ".join(os.path.basename(x.rstrip("/\\")) or x for x in roots)
+    return (max(best)[1] if best else None), where
 
 def open_stream(path):
     if not enabled(): raise HttpError(404, "Preview is switched off (PREVIEW_ENABLED=0)")

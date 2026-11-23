@@ -2,6 +2,16 @@
 
 One line per release, newest first. Each link has the full notes. Internal names such as autoid.py and autoid.env were kept on purpose through the Storigen rename.
 
+* [v10.18.2 - Groq 400/404 shows Groq's own reason; v10.18.1 - Groq connection works on a Mac whose Python has no certificates (uses the system bundle); v10.18.0 - A clip added with the + (Add media) button shows on the dashboard at once (story card and gallery, whatever VERSION_SUFFIX is) and has a Play preview: its file is found on Nitro by name every time, nothing stored](CHANGES_v10180.md)
+* [v10.17.0 - One Add media per story (Delete stays on each clip); clips added by hand in Blaze now show on the dashboard; the chat reads the real clip list from Blaze before it numbers _U / _V; the violence check button is always visible and says why it is off; Groq connection problems say what to open](CHANGES_v10170.md)
+* [v10.16.0 - AI standards check: Groq flags violence, sexual content and distressing scenes that are NOT blurred (off until an admin switches it on; a help for the desk, never clearance)](CHANGES_v10160.md)
+* [v10.15.0 - Missing-clip board (stories with no clip, live countdown to the bulletin, red under a limit you set, Add media one click away) and Bulletin smoke test (Quick test with a bar graph); both switched on / off by an admin under Users > Features, not in autoid.env](CHANGES_v10150.md)
+* [v10.14.0 - Add media in the dashboard, next to Delete: search the clips Blaze holds (or type a name to queue it) for the open story; same request and rules as Quick Support](CHANGES_v10140.md)
+* [v10.13.0 - Browser scan: a button that flags unblurred nudity while the clip plays, with a model running in the editor's own browser (nothing uploaded or stored; nudity only, never clearance; the model is not included)](CHANGES_v10130.md)
+* [v10.12.0 - Insights: assistant name check with reasons; Insights tab (clip times, late clips, updates per bulletin); Check quality (black, frozen, silence, loudness, shape, length); Frames and AI description with Groq (opt-in, nothing stored)](CHANGES_v10120.md)
+* [v10.11.0 - Delete icon next to the preview of every clip (Yes / No, deletes the clip everywhere the story is in the rundown); Clip assistant: a chat button on every page that gives the exact next file name for Append (_V) or Update (_U)](CHANGES_v10110.md)
+* [v10.10.1 - Quick Support edge cases: an older Support table no longer stops the database, bad input gets a clean answer, waiting requests cannot starve others, stuck requests close, bad settings fall back](CHANGES_v10101.md)
+* [v10.10.0 - Quick Support: a Support item in the left menu to add a media clip to a story (picked, or a typed name queued until the file appears) and to delete a clip from a story, with Yes / No and a notification](CHANGES_v10100.md)
 * [v10.9.8 - selected-text word count and time float above the selection](CHANGES_v1098.md)
 * [v10.9.7 - script pane: one box per Online / Anchor text, word count, reading time, selection count](CHANGES_v1097.md)
 * [v10.9.6 - editor filter in the Ready feed; desktop app (Electron) in `electron/`](CHANGES_v1096.md)

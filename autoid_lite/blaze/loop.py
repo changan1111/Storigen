@@ -28,7 +28,11 @@ class RunMixin:
             ph["scripts"] = time.monotonic() - t
             if time.time() - self.last_rec >= self.c.reconcile: t = time.monotonic(); self.reconcile(); ph["reconcile"] = time.monotonic() - t; self.write_page(); self.last_rec = time.time()
             if time.time() - self.pinged > 60: self.b.ping(); self.pinged = time.time()
-            self.finish_cycle(t0, n); self.daily(); return plans
+            self.finish_cycle(t0, n); self.daily()
+            try: self.support_round("ACTION" if self.sup_thread_alive() else "ALL")           # v10.10.0 Quick Support: after the round and its heartbeat, in its own guard: nothing in there can reach the round
+            except BaseException as e:
+                if isinstance(e, (KeyboardInterrupt, SystemExit)): raise
+            return plans
         finally: self.lock.release()
     def settings_drift(self):
         """v9.13.1: autoid.env was edited after this poller started: it still runs the OLD values. Said once in the log, and on the dashboard through the heartbeat."""
@@ -95,7 +99,7 @@ class RunMixin:
             self.a.alert("Blaze poller: the Blaze session cookie is not valid any more. Put a fresh sessionId and username into autoid.env (picked up automatically, no restart).")
         return True
     def run(self):
-        self.began = time.time(); say("blaze_poll started: %s  shows=%s  attach=%s%s  (attach lines go to %s)" % (self.c.blaze, "auto (the day's shows from Blaze)" if self.c.auto else ",".join(self.c.shows), self.c.attach,
+        self.began = time.time(); self.sup_start(); say("blaze_poll started: %s  shows=%s  attach=%s%s  (attach lines go to %s)" % (self.c.blaze, "auto (the day's shows from Blaze)" if self.c.auto else ",".join(self.c.shows), self.c.attach,
             {"live": " LIVE " + live_scope_text(self.c) + ": REAL ATTACHES ARE SENT", "dry": " (nothing is sent to Blaze)", "off": ""}[self.c.attach], self.c.watchlog)); bad = False
         while True:
             t_start = time.monotonic()

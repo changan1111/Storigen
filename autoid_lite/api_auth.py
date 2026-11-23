@@ -5,6 +5,7 @@ import datetime as dt, os, time, uuid
 from .db import now_iso
 from .ids import suffix_on
 from .common import APP_VERSION, EMAIL_RE, HttpError
+from . import quality, clipsummary, scanassets
 
 class AuthMixin:
     def profile(self, cur, uid):
@@ -56,7 +57,7 @@ class AuthMixin:
     def a_me(self, r): return r.user
     def manual_enabled(self): return self.cfg["link_mode"] == "placeholder" or self.cfg["allow_manual"] == "1"
     def a_config(self, r):
-        return {"story_url": self.cfg["story_url"], "version": APP_VERSION, "link_mode": self.cfg["link_mode"], "watcher_enabled": self.cfg["watcher_enabled"], "manual_enabled": self.manual_enabled(), "quick_attach": self.cfg["quick_attach"], "script_labels": self.cfg["script_labels"], "preview": os.getenv("PREVIEW_ENABLED", "1") != "0", "version_suffix": suffix_on(), "keep_days": self.cfg.get("keep_days", 7)}
+        return {"story_url": self.cfg["story_url"], "version": APP_VERSION, "link_mode": self.cfg["link_mode"], "watcher_enabled": self.cfg["watcher_enabled"], "manual_enabled": self.manual_enabled(), "quick_attach": self.cfg["quick_attach"], "support": self.cfg.get("support", True), "support_wait_min": self.cfg.get("support_wait_min", 60), "script_labels": self.cfg["script_labels"], "preview": os.getenv("PREVIEW_ENABLED", "1") != "0", "version_suffix": suffix_on(), "keep_days": self.cfg.get("keep_days", 7), "quality": quality.enabled(), "frames": clipsummary.frames_enabled(), "ai_summary": clipsummary.ai_available(), "scan": scanassets.status(), "standards_key": clipsummary.key() != "", "features": self.feat_view()}
     def admins_still_valid(self, cur, excluding):
         t = self.local_today()
         for p in cur.q("SELECT * FROM users WHERE role='admin' AND id<>?", (excluding,)):

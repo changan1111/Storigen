@@ -24,6 +24,12 @@ autoid_lite/
   api_service.py               ServiceMixin   /svc/*  feeds, attach confirm, quick-attach result, health
   api_auth.py                  AuthMixin      sign-in, roles, users
   api_dashboard.py             DashboardMixin /api/*  clips, rundowns, versions, history, CSV, report page
+  api_bot.py                   BotMixin       /api/bot/*  read-only Clip assistant: next file names (Append _V / Update _U) (v10.11.0)
+  api_insights.py              InsightsMixin  read-only: /api/bot/checkname, /api/clips/<id>/quality, /api/clips/<id>/frames, /api/analytics (v10.12.0)
+  api_features.py              FeaturesMixin  Missing-clip board (/api/missing), Bulletin smoke test (/api/smoke), and their on / off switches (/api/features, stored in the `settings` table, admin only) (v10.15.0). Read-only: only reads the registry
+  coach.py / quality.py / clipsummary.py   name rules, ffmpeg quality check, frames + Groq description (v10.12.0)
+  standards.py                 the AI standards check: frames -> Groq (batches of 5) -> strict parse -> judge (v10.16.0); switched on under Users > Features
+  scanassets.py                the browser scan's model files (data/scan): status + /api/scan/assets/<name> (v10.13.0); the scan itself runs in the page
   db.py                        SQLite: tx(), backup, VERSIONED schema (see below)
   security.py  ids.py  config.py  alerts.py
   watcher.py  gateway.py
@@ -58,13 +64,14 @@ tools/blaze_ledger.py, blaze_snapshot.py   aliases of blaze/ledger.py, blaze/sna
 
 ## How to add a setting / a clip column / an endpoint
 
+* Switch an admin should flip on the page (no restart): a `feature.<name>` row in the `settings` table, see `api_features.py` (`feat_read`) and `Users > Features` in the page.
 * Setting: read it in `settings_from_env` (server) or `blaze/settings.py` (poller), add it to `autoid.env.example`, `/api/config` if the page needs it, the guide, and a test.
 * Column: see above.
 * Endpoint: add the method to the matching mixin and one line to the route table in `App.__init__`.
 
 ## Tests
 
-`python3 -m pytest -q tests` (about 50 s, 307 tests). Fake Blaze: `tests/test_blaze_poll.py` (`Fake`). Speed: `python3 tools/bench_polling.py --root .` (simulated Blaze, latencies replayed from a real capture). `tests/test_selftest_passes.py` runs the same `autoid.py selftest` the install guide tells operators to run.
+`python3 -m pytest -q tests` (about 110 s, 583 tests). Fake Blaze: `tests/test_blaze_poll.py` (`Fake`). Speed: `python3 tools/bench_polling.py --root .` (simulated Blaze, latencies replayed from a real capture). `tests/test_selftest_passes.py` runs the same `autoid.py selftest` the install guide tells operators to run.
 
 ## Known follow-ups (not done on purpose: they change behaviour or data)
 

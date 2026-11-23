@@ -54,6 +54,7 @@
   { const b = C[0]; [[2001, "_V01", "ATTACHED"], [1001, "_U01", "ON_NITRO"]].forEach((x, k) => { const n = C.length + 1; C.push(derive(Object.assign({}, b, { id: n, display_id: b.display_id + x[1], name_id: b.name_id + x[1], version: x[0], state: x[2], story_id: b.story_id, t: ago(40 - k * 10) }))); }); }
   const siblings = c => C.filter(x => x.story_id === c.story_id);
   C.forEach(c => { const l = siblings(c); c.story_clips = l.length; c.story_update = l.some(x => x.version > 1000 && x.version < 2000) ? "U01" : null; c.vlabel = c.version > 2000 ? "V" + pad(c.version % 1000) : c.version > 1000 ? "U" + pad(c.version % 1000) : null; });
+  const SJ = [];      // v10.11.0 sample Support requests (the Delete icon)
   const json = (d, s) => new Response(JSON.stringify(d), { status: s || 200, headers: { "Content-Type": "application/json" } });
   const hm = iso => { const d = new Date(iso); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
   const hay = c => [c.slug, c.story_title, c.display_id, c.name_id, c.mos_object_id, c.item_id, c.blaze_story_id, c.slug_id, c.blaze_rundown_id, c.rundown, hm(c.show_start), hm(c.show_start).replace(":", "")].join(" ").toLowerCase();
@@ -107,7 +108,7 @@
     u = String(u); if (u.indexOf("/api/") !== 0) return realFetch(u, o);
     const [path, qs] = u.split("?"), q = new URLSearchParams(qs || ""), post = o && o.method === "POST"; let m;
     if (path === "/api/me") return json({ email: "demo@storigen.local", name: "Demo", role: "admin", perms: ["view", "version", "attach", "events"], valid_upto: null, days_left: null });
-    if (path === "/api/config") return json({ story_url: "sample", version: "10.9.8 sample", link_mode: "story_id", watcher_enabled: true, manual_enabled: false, quick_attach: true, script_labels: ["Online script", "Anchor script"], version_suffix: true });
+    if (path === "/api/config") return json({ story_url: "sample", version: "10.18.2 sample", link_mode: "story_id", watcher_enabled: true, manual_enabled: false, quick_attach: true, support: true, script_labels: ["Online script", "Anchor script"], version_suffix: true });
     if (path === "/api/status") return json({ problems: [] });
     if (path === "/api/rundowns") return json(SHOWS.map(s => s.name));
     if (path === "/api/feed") return json(feedQuery(q));
@@ -116,6 +117,33 @@
     if (path === "/api/login" || path === "/api/logout") return json({ ok: true });
     if ((m = /^\/api\/clips\/(\d+)\/history$/.exec(path))) { const c = clipById(m[1]); return c ? json(history(c)) : json({ detail: "no such clip" }, 404); }
     if (post && (m = /^\/api\/clips\/(\d+)\/(attached|quickattach)$/.exec(path))) { const c = clipById(m[1]); if (c) { c.state = "ATTACHED"; c.stage_file = null; derive(c); c.mos_object_id = c.mos_object_id || String(4400000 + c.id * 17); } return json({ ok: true }); }
+    // v10.11.0: the Clip assistant (read-only, /api/bot/*) and the Delete icon (the Support list / remove calls), answered from the sample stories
+    if (path === "/api/bot/bulletins" || path === "/api/support/bulletins") return json({ day: DAY, wait_min: 60, bulletins: SHOWS.map(s => ({ id: s.id, name: s.name, start_at: s.start, aired: new Date(s.start) < new Date(Date.now() - 3600000), stories: new Set(C.filter(c => c.blaze_rundown_id === s.id).map(c => c.story_id)).size })).filter(b => b.stories) });
+    if (path === "/api/bot/stories" || path === "/api/support/stories") { const sh = SHOWS.find(x => x.id === q.get("rundown")); if (!sh) return json({ detail: "unknown bulletin" }, 404);
+      const seen = new Set(), st = C.filter(c => c.blaze_rundown_id === sh.id && !seen.has(c.story_id) && seen.add(c.story_id)).map(c => ({ id: c.blaze_story_id, title: c.slug, pos: c.position })); return json({ stories: st, aired: new Date(sh.start) < new Date(Date.now() - 3600000) }); }
+    if (path === "/api/bot/story") { const c = C.find(x => x.blaze_rundown_id === q.get("rundown") && x.blaze_story_id === q.get("story") && x.version === 1); if (!c) return json({ detail: "unknown story" }, 404);
+      const rows = siblings(c), strip = n => n.replace(/(_[UV]\d+)+$/i, ""), base = strip(c.name_id), has = (a, b) => rows.some(x => x.version >= a && x.version < b), top = (a, b) => Math.max(0, ...rows.filter(x => x.version >= a && x.version < b).map(x => x.version));
+      const mkslot = (key, label, cur, u, nameFor) => ({ key, label, current: cur.name_id, state: cur.state, in_story: cur.state === "ATTACHED" && !cur.replaced, update_no: u, next_u: u + 1, next_u_name: nameFor(u + 1) });
+      const mainRows = rows.filter(x => x.version === 1 || (x.version > 1000 && x.version < 2000)).sort((a, b) => a.version - b.version), mc = mainRows[mainRows.length - 1];
+      const vs = rows.filter(x => x.version > 2000 && x.version < 3000).sort((a, b) => a.version - b.version), nv = (vs.length ? vs[vs.length - 1].version - 2000 : 0) + 1;
+      return json({ story: { id: c.blaze_story_id, title: c.slug, bulletin: c.rundown, aired: new Date(c.show_start) < new Date(Date.now() - 3600000) }, base, day: DAY,
+        clips: rows.slice().sort((a, b) => (a.version !== 1) - (b.version !== 1) || a.version - b.version).map(x => ({ name: x.name_id, version: x.version, state: x.state, replaced: !!x.replaced })),
+        main: mkslot("main", "Main clip", mc, mc.version > 1000 ? mc.version - 1000 : 0, n => base + "_U" + pad(n)),
+        added: vs.map(v => mkslot("V" + pad(v.version - 2000), "Added clip V" + pad(v.version - 2000), v, 0, n => base + "_V" + pad(v.version - 2000) + "_U" + pad(n))),
+        next_v: base + "_V" + pad(nv), next_v_no: nv, bulletins: [{ name: c.rundown, aired: false }], version_suffix: true }); }
+    // v10.12.0 sample answers: name check, quality check, frames, analytics (no ffmpeg or Groq in the sample)
+    if (path === "/api/bot/checkname") { const n = q.get("name") || ""; return json({ ok: /_V\d\d$/.test(n), kind: "append", does: "adds a clip", messages: ["Sample answer: the real server checks the name against the story."], fix: null, base: "sample" }); }
+    if ((m = /^\/api\/clips\/(\d+)\/quality$/.exec(path))) return json({ verdict: "warn", facts: {}, checks: [{ name: "Picture", level: "ok", text: "1920x1080 · 25 fps" }, { name: "Sound", level: "ok", text: "Loudness -23.1 LUFS" }, { name: "Black", level: "warn", text: "Black at the start or end: 1.4 s at 0:00." }, { name: "Length", level: "ok", text: "File 48 s · attached 48 s" }] });
+    if ((m = /^\/api\/clips\/(\d+)\/frames$/.exec(path))) return json({ duration_s: 48, frames: [], summary: q.get("ai") === "1" ? "Sample: a reporter speaks in front of a crowd." : undefined, tags: ["sample"], model: "sample", ai_error: q.get("ai") === "1" ? undefined : undefined });
+    if (path === "/api/analytics") { const z = { n: 0, median: null, p90: null }, blk = { clips: C.length, attached: C.filter(c => c.state === "ATTACHED").length, waiting: 0, problem: 0, late: 0, updates: 0, added: 0, to_nitro: z, to_attach: { n: 1, median: 12.5, p90: 31 }, nitro_to_attach: z };
+      return json({ total: blk, days: [{ day: DAY, ...blk }], shows: SHOWS.map(s => ({ show: s.name, ...blk })), slowest: [], from: DAY, to: DAY, days_asked: 7 }); }
+    if (path === "/api/support/media") return json({ media: [], days: 2 });
+    if (path === "/api/support/jobs") return json({ jobs: SJ.filter(j => j.kind !== "LIST").reverse(), open: 0 });
+    if (post && path === "/api/support/list") { const b = JSON.parse(o.body || "{}"), cl = C.filter(x => x.blaze_story_id === b.story && x.blaze_clip_id && !x.replaced);
+      SJ.push({ id: SJ.length + 1, kind: "LIST", state: "DONE", result: { clips: cl.map(x => ({ id: x.blaze_clip_id, mos: x.mos_object_id, title: x.name_id, dur_s: x.attach_dur })), shows: [b.rundown], show_names: [(SHOWS.find(s => s.id === b.rundown) || {}).name || b.rundown], story_title: (cl[0] || {}).slug } }); return json({ id: SJ.length }); }
+    if ((m = /^\/api\/support\/jobs\/(\d+)$/.exec(path))) { const j = SJ[+m[1] - 1]; return j ? json(j) : json({ detail: "unknown request" }, 404); }
+    if (post && path === "/api/support/remove") { const b = JSON.parse(o.body || "{}"), c = C.find(x => x.blaze_clip_id === b.clip_id); if (c) { c.state = "NEEDS_DESK"; c.error = "Sample: the clip was deleted from the story by the Delete icon."; c.blaze_clip_id = null; c.item_id = null; c.attach_dur = null; c.stages.attached = false; }
+      SJ.push({ id: SJ.length + 1, kind: "REMOVE", state: "DONE", story: (c || {}).slug, clip_title: b.clip_title, by_user: "demo", msg: "Sample: deleted, nothing was sent to Blaze." }); return json({ ok: true, id: SJ.length }); }
     return json({ detail: "Not available in the sample dashboard (no server behind it)." }, 400);
   };
   window.open = () => { alert("Sample dashboard: in the live app this opens the story in Blaze."); return null; };

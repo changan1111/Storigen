@@ -1,0 +1,19 @@
+# v10.10.1 - Quick Support: edge cases
+
+A patch on v10.10.0. The Support menu works as before; these are the places where it could fail, wait for ever or answer with an internal error. Each one was reproduced first, then fixed, and has a test in `tests/test_support_menu.py` (27 tests now).
+
+## What was fixed
+
+1. **An older Support table stopped the database from opening.** The separate-worker Support build made a `support_jobs` table with other columns. `CREATE TABLE IF NOT EXISTS` kept it and the new index on `state` failed with *no such column: state*, so the server did not start. Now such a table is renamed to `support_jobs_legacy` (its history is kept; `DROP TABLE support_jobs_legacy` removes it) and the right table is made. A line on stderr says so. A second start changes nothing.
+2. **Waiting requests could starve the ones behind them.** The poller looked at the first 8 open requests of a round. Eight typed names whose files had not arrived yet filled every place, so a new *Add media* of a picked file or a *Delete media* was never reached. Now only requests that are actually **started** count towards the limit of 8 per round; waiting ones are looked at for free and never use a place.
+3. **A request stuck as Working stayed open for ever** (poller stopped between the claim and the answer and was not started again): the menu badge showed it as open and the clean-up never touched it. Now the page closes an ADD / REMOVE that has been Working for 30 minutes as *Failed: unclear whether it went through, look at the story*, with an event and a chat alert. It is **never sent again**. The poller itself does not do this: when it starts again it still settles such a request by reading the story, which is exact.
+4. **A picked file could be attached an hour later.** A picked file shared the 60-minute wait of a typed name. If the poller was down, the clip could appear in a story long after the editor pressed Yes (a delete already had a 10-minute limit for the same reason). Now a picked file expires after **15 minutes** (never longer than `SUPPORT_QUEUE_MINUTES`) with a message that says to pick it again. A typed name still waits the full time: waiting for the file is its purpose.
+5. **Bad input gave a 500 *internal error*** instead of a clear answer: `?day=20261399` (not a real date) now 400; a request number too large to exist (`/api/support/jobs/9999...9/cancel`) now 404; a name or title that is a list / object / true-false now 400; a number is taken as its digits (then judged as a name). A typed name over 200 characters and a clip title over 500 are refused (422), never silently cut. Control characters in a name become spaces. The poller's report with a non-numeric id answers 422.
+6. **A typo in a Support setting stopped the program.** `SUPPORT_LIST_SECS=fast` raised while the poller started; `SUPPORT_QUEUE_MINUTES=abc` raised while the server read its settings. Now text or an empty value falls back to the default (2 s / 60 min), and numbers are pulled into the range (`SUPPORT_LIST_SECS` 1 to 60, `SUPPORT_QUEUE_MINUTES` 1 to 1440).
+
+## Not changed on purpose
+- Polling, the watcher, the safety rules (kill switch, verified formats, one attempt, read-back, `BLAZE_ATTACH` off / dry) and every message of the menu.
+- Requests are still carried out after a *successful* polling round. If Blaze or its session is down, nothing could be sent anyway; a delete then expires after 10 minutes and a picked file after 15, never later.
+
+## Moving from the separate-worker build
+Nothing to do: start this version. The old `support_jobs` table is kept as `support_jobs_legacy`. The files `tools/support_worker.py` and `SUPPORT_ENABLED` / `SUPPORT_QUEUE_MINS` of that build do not exist here (the poller does the work; the settings are `SUPPORT_MENU`, `SUPPORT_QUEUE_MINUTES`, `SUPPORT_LIST_SECS`).

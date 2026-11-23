@@ -76,7 +76,7 @@ class MediaMixin:
         """The story details behind a plan line (item, linked shows), read in parallel, a bounded batch, and kept for BLAZE_INFO_SECS."""
         now = time.time(); due = [x for x in dict.fromkeys(stories) if x not in self.info_cache or now - self.info_cache[x][0] >= self.c.info_secs][: self.c.recon_batch]
         def one(sid):
-            try: return sid, "ok", self.rt(lambda: self.b.story_info(sid))
+            try: return sid, "ok", (lambda i: (self.report_clips(sid, i), i)[1])(self.rt(lambda: self.b.story_info(sid)))
             except SessionExpired as e: return sid, "expired", e
             except Exception as e: return sid, "err", e
         for sid, kind, val in self.pool_map(one, due, "info"):

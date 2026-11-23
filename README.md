@@ -180,6 +180,16 @@ For installation and operational guidance, refer to:
 
 Release highlights, newest first. Each version links to its full notes.
 
+- [v10.18.0](docs/CHANGES_v10180.md) - a clip added with the + (Add media) button shows on the dashboard at once, on every setting, and has a Play preview (its file is looked up on Nitro by name, nothing stored).
+- [v10.17.0](docs/CHANGES_v10170.md) - one Add media per story; hand-added clips on the dashboard; the chat reads the real clip list from Blaze; violence check button always visible; clearer Groq connection errors
+- [v10.16.0](docs/CHANGES_v10160.md) - AI standards check: flags violence, sexual content and distressing scenes that are not blurred (Groq; off until an admin switches it on).
+- [v10.15.0](docs/CHANGES_v10150.md) - Missing-clip board (stories with no clip, countdown to the bulletin, red under 20 minutes, Add media one click away) and Bulletin smoke test (Quick test with a bar graph); both switched on / off by an admin on the page.
+- [v10.14.0](docs/CHANGES_v10140.md) - Add media in the dashboard, right next to Delete (search the clips Blaze holds, or type a name to queue it).
+- [v10.13.0](docs/CHANGES_v10130.md) - Browser scan: flags unblurred nudity while a clip plays (model runs in the editor's browser; setup in docs/SCAN_SETUP.md).
+- [v10.12.0](docs/CHANGES_v10120.md) - Insights tab; assistant checks a typed file name and explains why; Check quality; clip Frames and optional AI description (Groq).
+- [v10.11.0](docs/CHANGES_v10110.md) - Delete icon next to the preview of every clip; Clip assistant (chat on every page: exact next name for Append `_V` / Update `_U`).
+- [v10.10.1](docs/CHANGES_v10101.md) - Quick Support edge cases (older Support table, bad input, queue fairness, stuck requests, bad settings).
+- [v10.10.0](docs/CHANGES_v10100.md) - Quick Support: add / delete media by hand from the left menu (exceptions only).
 - [v10.9.8](docs/CHANGES_v1098.md) - The selected-text count floats above the selection instead of sitting in the footer.
 
 - [v10.9.7](docs/CHANGES_v1097.md) - Script pane: every Online / Anchor text in its own box, word count and reading time (words per minute), count for the selected text.

@@ -24,8 +24,8 @@ On the first start it asks for the **server address**, for example `http://janam
 
 Make the installer:
 
-    npm run dist:mac        # on a Mac     -> electron/dist/Storigen-10.9.8.dmg (or -arm64.dmg)
-    npm run dist:win        # on Windows   -> electron/dist/Storigen Setup 10.9.8.exe
+    npm run dist:mac        # on a Mac     -> electron/dist/Storigen-10.11.0.dmg (or -arm64.dmg)
+    npm run dist:win        # on Windows   -> electron/dist/Storigen Setup 10.11.0.exe
 
 (The first build downloads Electron, so it needs internet and takes a few minutes.)
 

@@ -11,8 +11,8 @@ MAKE = ROOT / "tools" / "make_standalone.py"
 def text(): return PAGE.read_text(encoding="utf-8")
 
 def test_the_version_is_10_3_0_everywhere_it_is_shown():
-    s = text(); assert 'var APP_VER="10.9.8"' in s and '<span class="vb">v10.9.8</span>' in s
-    assert 'APP_VERSION = "10.9.8"' in (ROOT / "autoid_lite" / "common.py").read_text(encoding="utf-8")
+    s = text(); assert 'var APP_VER="10.18.2"' in s and '<span class="vb">v10.18.2</span>' in s
+    assert 'APP_VERSION = "10.18.2"' in (ROOT / "autoid_lite" / "common.py").read_text(encoding="utf-8")
 
 def test_date_and_bulletin_are_in_the_top_bar_outside_the_panes():
     s = text(); top, panes = s[s.index('class="tb"'):s.index('id="split"')], s[s.index('id="split"'):s.index('id="deskbox"')]
@@ -43,7 +43,7 @@ def test_a_story_is_always_selected_so_the_panes_are_never_empty_when_there_are_
 def test_the_sample_shim_answers_every_call_the_page_makes_on_load():
     js = SHIM.read_text(encoding="utf-8")
     for p in ("/api/me", "/api/config", "/api/status", "/api/rundowns", "/api/clips", "/api/events"): assert '"%s"' % p in js, p
-    assert "history$" in js and "attached|quickattach" in js and "10.9.8 sample" in js
+    assert "history$" in js and "attached|quickattach" in js and "10.18.2 sample" in js
 
 @pytest.mark.skipif(not shutil.which("node"), reason="node is not installed")
 def test_the_shim_is_valid_javascript():

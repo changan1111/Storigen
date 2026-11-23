@@ -103,6 +103,10 @@ class DashboardMixin:
                 (SELECT nas_path FROM files f WHERE f.clip_id=c.id AND f.nas_path IS NOT NULL ORDER BY f.id LIMIT 1) AS _nas, (SELECT nitro_path FROM files f WHERE f.clip_id=c.id AND f.nitro_path IS NOT NULL ORDER BY f.id DESC LIMIT 1) AS _nit,
                 c.on_nitro_at AS _onair_at, c.media_found_at AS _media_at, c.attached_at AS _att_at """ + base + stwhere + " " + order + (" LIMIT %d OFFSET %d" % (per, (page - 1) * per) if per else ""), args + stargs)
         for x in rows: x["stages"] = self.stages(x)
+        hand = {}
+        if rows:                                                                          # v10.18.0: the count of clips Blaze holds that Storigen did not make is worked out for every setting (it used to need VERSION_SUFFIX=on, so a clip added with + showed nowhere on the story card when it was off)
+            with self.db.tx() as cur: hand = self.hand_counts(cur, rows)
+            for x in rows: x["hand_clips"] = hand.get(x["story_id"], 0)
         if suffix_on() and rows:                                                          # v10.5.0: the story's clips for the badge. v10.7.0: story_clips = the clips really in the story (attached and not replaced), not the number of clip IDs; replaced_label = which update took a clip's place
             with self.db.tx() as cur:
                 ids = sorted({x["story_id"] for x in rows}); info = {}
@@ -110,7 +114,7 @@ class DashboardMixin:
                     part = ids[i:i + 500]
                     for y in cur.q("SELECT story_id, SUM(CASE WHEN state='ATTACHED' AND replaced_at IS NULL THEN 1 ELSE 0 END) AS n, MAX(CASE WHEN version>1000 AND version<2000 THEN version END) AS u FROM clip_ids WHERE story_id IN (%s) GROUP BY story_id" % ",".join("?" * len(part)), part): info[y["story_id"]] = y
             for x in rows:
-                y = info.get(x["story_id"]) or {}; x["story_clips"] = y.get("n") or 0; x["replaced_label"] = (re.search(r"_([UV]\d+)$", x["replaced_by"]).group(1) if x.get("replaced_by") and re.search(r"_([UV]\d+)$", x["replaced_by"]) else None); x["story_update"] = vlabel(y["u"]) if y.get("u") else None; x["vlabel"] = vlabel(x["version"]) if kind_of(x["version"]) else None
+                y = info.get(x["story_id"]) or {}; x["story_clips"] = (y.get("n") or 0) + hand.get(x["story_id"], 0); x["replaced_label"] = (re.search(r"_([UV]\d+)$", x["replaced_by"]).group(1) if x.get("replaced_by") and re.search(r"_([UV]\d+)$", x["replaced_by"]) else None); x["story_update"] = vlabel(y["u"]) if y.get("u") else None; x["vlabel"] = vlabel(x["version"]) if kind_of(x["version"]) else None
         wmap, wts = getattr(self, "why", ({}, 0)); wlive = time.time() - wts < 120          # v9.13.1: only while the poller is sending it
         for x in rows: x["why"] = wmap.get(x["display_id"]) if wlive and x["state"] != "ATTACHED" else None
         for x in rows: x["deleted"] = bool(x["deleted"]); x["typed"] = x["blaze_rundown_id"].startswith("name:") or x["blaze_story_id"].startswith("manual-")
@@ -257,6 +261,7 @@ class DashboardMixin:
                          (SELECT nitro_path FROM files f WHERE f.clip_id=c.id AND f.nitro_path IS NOT NULL ORDER BY f.id DESC LIMIT 1) AS _nit,
                          (SELECT duration_s FROM files f WHERE f.clip_id=c.id AND f.duration_s IS NOT NULL ORDER BY f.id DESC LIMIT 1) AS duration_s
                          FROM clip_ids c WHERE c.story_id=(SELECT story_id FROM clip_ids WHERE id=?) ORDER BY c.id""", (c[0]["id"],))
+            stored, _seen = self.stored_clips(cur, c[0]["blaze_story_id"])         # v10.17.0: what Blaze really holds in the story (clips added by hand included)
         c = c[0]; base = lambda p: re.split(r"[\\/]", p)[-1] if p else None
         seen = next((f for f in files if f["state"] in ("EXPORTING", "VERIFIED", "ON_NITRO", "QUARANTINED") and f["nas_path"]), None) or next((f for f in files if f["nas_path"]), None)
         nit = next((f for f in reversed(files) if f["nitro_path"]), None)
@@ -270,7 +275,7 @@ class DashboardMixin:
         if err: steps.append(step("problem", "Needs the desk", err, None, False, True))
         if c["deleted"]: steps.append(step("removed", "Story removed from the rundown", "Check in Blaze where the clip belongs before marking it attached", None, False, True))
         first = next((f for f in files if f["nitro_path"] or f["nas_path"]), None); fl = nit or first
-        return {"id": c["id"], "display_id": c["display_id"], "name_id": c["name_id"], "state": c["state"], "steps": steps, "story_clips": self.story_clips(sib),
+        return {"id": c["id"], "display_id": c["display_id"], "name_id": c["name_id"], "state": c["state"], "steps": steps, "story_clips": self.story_clips(sib) + self.hand_cards(stored, sib, c["blaze_story_id"]),
                 "clip": {"slug": c["slug"], "story_title": c["story_title"], "online_script": c["online_script"], "anchor_script": c["anchor_script"], "script_items": self.script_items_of(c["script_items"]), "script_at": c["script_at"], "created_by": c["created_by"], "assigned_to": c["assigned_to"], "editor": c.get("editor"), "show_start": c["show_start"], "rundown": c["rundown"], "blaze_rundown_id": c["blaze_rundown_id"], "blaze_story_id": c["blaze_story_id"], "position": c["position"], "deleted": bool(c["deleted"]),
                          "mos_object_id": c["mos_object_id"], "item_id": c["item_id"], "attach_dur": c["attach_dur"], "blaze_clip_id": c["blaze_clip_id"]},
                 "file": {"name": base((fl or {}).get("nitro_path") or (fl or {}).get("nas_path")), "where": "Nitro" if nit else ("Playout" if fl else None), "size": (fl or {}).get("size"), "duration_s": (fl or {}).get("duration_s")} if fl else None}

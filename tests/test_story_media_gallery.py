@@ -63,7 +63,7 @@ def test_the_page_shows_the_gallery_only_when_the_story_has_more_than_one_clip()
 
 def test_the_gallery_card_has_what_the_desk_asked_for():
     s = text(); g = s[s.index("function gallery("):s.index("function startPreview(")]
-    for t in ("Story Media Gallery", '" clips"', '"MOS: "', '"Item: "', "▶ Play preview", "startPreview(x,", "openStory(x.id)", '"Original"', '"Additional"', '"Update"', "latest", '"Open"', "x.label", "x.name_id"): assert t in g, t
+    for t in ("Story Media Gallery", '" clip"+(L.length===1?"":"s")', '"MOS: "', '"Item: "', "▶ Play preview", "startPreview(x,", "openStory(x.id)", '"Original"', '"Additional"', '"Update"', "latest", '"Open"', "x.label", "x.name_id"): assert t in g, t
     assert "textContent" not in g and "innerHTML" not in g, "names come from file names: they are added as text, never as HTML"
 
 def test_a_row_outside_the_current_list_is_not_opened_and_says_why():
@@ -72,7 +72,7 @@ def test_a_row_outside_the_current_list_is_not_opened_and_says_why():
 
 def test_there_is_one_player_for_the_whole_pane():
     s = text(); assert s.count('document.createElement("video")') == 1 and "function startPreview(c,f){stopPreview();" in s
-    assert s.count("startPreview(") >= 3 and 'v.src="/api/clips/"+c.id+"/preview"' in s
+    assert s.count("startPreview(") >= 3 and 'v.src=c.purl||("/api/clips/"+c.id+"/preview")' in s
     assert "cache" not in s[s.index("function gallery("):s.index("async function showDetail(")].lower(), "the preview still stores nothing"
 
 def test_the_sample_dashboard_has_a_story_with_three_clips():

@@ -8,16 +8,18 @@ from . import ledger as bl
 from . import snapshot as snap
 from .attach import AttachMixin
 from .client import AutoId, Blaze
+from .clipreport import ClipReportMixin
 from .errors import SessionExpired
 from .keys import ignored, rkey, show_ignored, transient
 from .loop import RunMixin
 from .media import MediaMixin
 from .reports import ReportMixin
 from .scripts import ScriptMixin
+from .support import SupportMixin
 from .util import say
 
 
-class Poller(MediaMixin, AttachMixin, ReportMixin, ScriptMixin, RunMixin):
+class Poller(ClipReportMixin, MediaMixin, AttachMixin, ReportMixin, ScriptMixin, SupportMixin, RunMixin):
     def __init__(self, c, blaze=None, autoid=None):
         self.c, self.b, self.a = c, blaze or Blaze(c), autoid or AutoId(c); self.led = bl.Ledger(c.ledger)
         self.names, self.pos, self.last, self.pinged, self.stories, self.rows, self.last_rec, self.skipped = {}, {}, {}, 0.0, {}, [], 0.0, {}

@@ -3,7 +3,7 @@ from __future__ import annotations
 from .config import data_dir
 import os, re
 
-APP_VERSION = "10.9.8"
+APP_VERSION = "10.18.2"
 from .states import STATES  # noqa: F401  (defined once in states.py)
 HOLD = "STORY REMOVED: "        # attach_error prefix of every clip held because its Blaze story is no longer in the rundown
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -18,6 +18,12 @@ class HttpError(Exception):
 
 def norm(s): return " ".join((s or "").split()).casefold()
 def removed_message(why): return HOLD + why + ". Check Blaze before attaching; do not attach by story name."
+
+def support_minutes(v, default=60):
+    """v10.10.1: SUPPORT_QUEUE_MINUTES is a whole number of minutes, 1 to 1440. Text or nothing -> the default (60) instead of stopping the program; a number outside the range is pulled into it."""
+    try: n = int(str(v).strip() or default)
+    except ValueError: return default
+    return min(1440, max(1, n))
 
 def settings_from_env(env=None):
     e = env if env is not None else os.environ
@@ -34,7 +40,7 @@ def settings_from_env(env=None):
     return {"keep_days": keep, "purge_at": pat, "link_mode": mode, "api_key": g("SERVICE_API_KEY"), "secret": g("SESSION_SECRET"), "tz": g("AUTOID_TZ").strip(), "day_start": g("BROADCAST_DAY_START", "05:00"),
             "valid_required": g("VALID_UPTO_REQUIRED", "1") != "0", "session_secs": int(g("SESSION_SECONDS", "43200")), "story_url": g("BLAZE_STORY_URL_TEMPLATE"),
             "admin_contact": g("ADMIN_CONTACT").strip(), "components": comps, "watcher_enabled": g("WATCHER_ENABLED", "1") != "0", "blaze_silent": int(g("BLAZE_SILENT_SECS", "300")), "stale": int(g("STALE_SECS", "90")),
-            "move_hint": int(g("MOVE_HINT_SECS", "600")), "cookie_secure": g("COOKIE_SECURE", "0") == "1", "allow_manual": g("ALLOW_MANUAL", ""), "quick_attach": g("QUICK_TEST_BUTTON", "1") != "0", "reports_dir": g("BLAZE_REPORT_DIR") or str(data_dir() / "reports"),
+            "move_hint": int(g("MOVE_HINT_SECS", "600")), "cookie_secure": g("COOKIE_SECURE", "0") == "1", "allow_manual": g("ALLOW_MANUAL", ""), "quick_attach": g("QUICK_TEST_BUTTON", "1") != "0", "support": g("SUPPORT_MENU", "1") != "0", "support_wait_min": support_minutes(g("SUPPORT_QUEUE_MINUTES", "60")), "reports_dir": g("BLAZE_REPORT_DIR") or str(data_dir() / "reports"),
             "script_labels": [g("SCRIPT_LABEL_ONLINE", "Online script").strip() or "Online script", g("SCRIPT_LABEL_ANCHOR", "Anchor script").strip() or "Anchor script"] }      # v9.13.2: the names of the two script boxes
 
 class Req:

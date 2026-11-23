@@ -341,7 +341,7 @@ class AttachMixin:
         fresh = lambda sid: self.ident.get(sid) is not None and now - self.ident[sid][1] < self.c.ident_secs + self.c.poll
         results = {s["story_id"]: ("ok", {"clips": [(x["mos"], x["title"]) for x in self.ident[s["story_id"]][0]], "title": None, "partial": True, "rows": [{"id": x["id"], "mos": x["mos"], "title": x["title"], "dur": x.get("dur"), "item": None} for x in self.ident[s["story_id"]][0]]}) for _, s in urgent if fresh(s["story_id"])}   # v10.4.0: with rows (before, confirm failed with 'rows')   # the identity read is fresh: no request
         def read(item):
-            try: return item[1]["story_id"], "ok", self.rt(lambda: self.b.story_info(item[1]["story_id"]))
+            try: return item[1]["story_id"], "ok", (lambda i: (self.report_clips(item[1]["story_id"], i), i)[1])(self.rt(lambda: self.b.story_info(item[1]["story_id"])))
             except SessionExpired as e: return item[1]["story_id"], "expired", e
             except Exception as e: return item[1]["story_id"], "err", e
         reads = [it for it in urgent if it[1]["story_id"] not in results] + batch

@@ -9,6 +9,13 @@ from . import envcheck
 
 # ---------------------------------------------------------------- settings
 class Cfg:
+    @staticmethod
+    def support_list_secs_value(v, default=2.0):
+        """v10.10.1: SUPPORT_LIST_SECS, 1 to 60 seconds. Text or nothing -> 2 (a typo must not stop the poller from starting)."""
+        try: n = float(str(v).strip() or default)
+        except ValueError: return default
+        if n != n: return default                                                  # NaN
+        return min(60.0, max(1.0, n))
     def __init__(self, env=None):
         e = env if env is not None else os.environ; g = lambda k, d="": (e.get(k) or d).strip(); self.env_seen = envcheck.snapshot(e)      # v9.13.1: what this poller started with (compared with autoid.env while it runs)
         self.blaze = g("BLAZE_URL", "http://10.1.10.XXX").rstrip("/"); self.sid = g("BLAZE_SESSION_ID"); self.user = g("BLAZE_USERNAME")
@@ -73,6 +80,7 @@ class Cfg:
         if self.heartbeat not in ("page", "get", "put", "both"): raise SystemExit("BLAZE_HEARTBEAT must be page, get, put or both (got %r)" % self.heartbeat)
         if self.attach not in ("off", "dry", "live"): raise SystemExit("BLAZE_ATTACH must be off, dry or live (got %r)" % self.attach)
         self.live_cap = self.live_max
+        self.support = g("SUPPORT_MENU", "1") != "0"; self.support_list_secs = self.support_list_secs_value(g("SUPPORT_LIST_SECS", "2"))      # v10.10.0 Quick Support: the dashboard's add / delete media requests; how often the story-list requests are answered (read only)
         if self.attach == "live" and not self.auto and self.live_shows and not self.live_shows <= set(self.shows): raise SystemExit("BLAZE_LIVE_SHOW_IDS must be among BLAZE_SHOW_IDS (got %s, followed %s)" % (",".join(sorted(self.live_shows)), ",".join(self.shows)))
 
     def reload_session(self):
