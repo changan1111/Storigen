@@ -29,7 +29,7 @@ The web service must see the Nitro folder and have ffmpeg (the same two things t
 * The Groq call now uses `SSL_CERT_FILE` if set, else the `certifi` package if installed, else the system bundle (`/etc/ssl/cert.pem` on a Mac). No setting needed.
 * The message now names this case and what to do. Restart the web service. Not tested against the real Groq.
 
-# v10.18.2 - Groq 400 / 404: Groq's own reason is shown
+# v11.0.0 - Groq 400 / 404: Groq's own reason is shown
 Any 400 or 404 used to say only "could not use the model". It may be the model name, or the request itself. The message now adds Groq's own text (never the key).
 To list the models your key can use (Terminal):
 `curl -s https://api.groq.com/openai/v1/models -H "Authorization: Bearer YOUR_KEY" | grep '"id"'`

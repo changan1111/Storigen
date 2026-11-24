@@ -10,7 +10,7 @@ import json, re, time
 from .common import HttpError, opt
 from . import preview
 from .db import now_iso
-from .ids import enc_version, norm_name
+from .ids import enc_version, norm_name, strip_label
 
 SUFFIX_RE = re.compile(r"((?:_[UV]\d+)+)$", re.I)                 # ..._V01, ..._U02, ..._V01_U02
 CAP = 200                                                          # clips kept per story
@@ -18,7 +18,7 @@ CAP = 200                                                          # clips kept 
 
 def parse_clip_name(title):
     """'231126_FIRE_V01_U02' -> ('231126_FIRE', 2000+1 ...) i.e. (base, stored version). A name without a suffix is the plain clip (1). None for a name this rule book cannot place (_V01_U01_V02 ...)."""
-    t = re.sub(r"\.[A-Za-z0-9]{2,4}$", "", (title or "").strip()); m = SUFFIX_RE.search(t)
+    t = strip_label(re.sub(r"\.[A-Za-z0-9]{2,4}$", "", (title or "").strip())); m = SUFFIX_RE.search(t)
     if not m: return t, 1
     base, suf = t[: m.start()], m.group(1).upper(); parts = re.findall(r"_([UV])(\d+)", suf)
     if not base or len(parts) > 2 or any(int(n) < 1 or int(n) > 99 for _, n in parts): return None

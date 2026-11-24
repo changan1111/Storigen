@@ -10,6 +10,10 @@ TAIL_RE = re.compile(r"((?:_[A-Za-z]\d*)+)$")                 # the trailing _V0
 PIECE_RE = re.compile(r"_([A-Za-z])(\d*)")
 
 
+LAB_PAREN = re.compile(r"(_[UVuv]\d+)[ _\-]*\(([^()]*)\)", re.I)                          # v11.0.0: 111126_FIRE_V02 (byte) / (minibyte) / (tag): a label for people, ignored by the system
+LAB_WORD = re.compile(r"(_[UVuv]\d+)[ _\-]+(mini[ _\-]?byte|byte|tag)$", re.I)
+
+
 def _norm(s): return re.sub(r"[^A-Z0-9]+", "_", (s or "").upper()).strip("_")
 
 
@@ -18,12 +22,19 @@ def _result(ok, kind, messages, expected=None, fix=None, does=None):
 
 
 def check_name(plan, base, typed, suffix_on=True):
+    res = _check_name(plan, base, typed, suffix_on); res["label"] = (LAB_PAREN.search(typed or "") or LAB_WORD.search((typed or "").strip()) or [None, None, ""])[2] if res else ""; return res
+
+
+def _check_name(plan, base, typed, suffix_on=True):
     """plan = api_bot.plan_names(...) of the story; base = the story's clip name (DDMMYY_SLUG); typed = what the editor typed or pasted."""
     name = (typed or "").strip()
     for e in EXTS:
         if name.lower().endswith(e): name = name[:-len(e)]; break
     if not name: return _result(False, "empty", ["Type or paste the file name first."])
-    notes = []
+    notes, label = [], ""
+    lm = LAB_PAREN.search(name) or LAB_WORD.search(name)
+    if lm: label = lm.group(2).strip(); name = LAB_WORD.sub(r"\1", LAB_PAREN.sub(r"\1", name)).strip()
+    if label: notes.append("The label (%s) after the version is only for people: the system ignores it." % label)
     if " " in name: notes.append("The name has spaces. Clip names use underscores (_) instead of spaces.")
     m = TAIL_RE.search(name)
     tail = m.group(1) if m else ""

@@ -55,13 +55,25 @@ def chain_version(base, kind, n):
     m = kind.upper() == "U" and re.search(r"_V(\d+)$", base or "", re.I)
     if not m: return enc_version(kind, n)
     return 10000 + int(m.group(1)) * 100 + int(n) if int(m.group(1)) < 100 and int(n) < 100 else None
+# ---- v11.0.0: a label after the version is only for people: 111126_FIRE_V01 (byte), _V02 (minibyte), _V01_U01 (tag). Everything after the version is ignored for matching and attaching.
+LABEL_PAREN = re.compile(r"(_[UV]\d+)[ _\-]*\([^()]*\)", re.I)                          # _V01 (byte) -> _V01, also in the middle: _V01 (byte)_U01 -> _V01_U01
+LABEL_WORD = re.compile(r"(_[UV]\d+)[ _\-]+(?:mini[ _\-]?byte|byte|tag)$", re.I)        # _V01 byte / _V01_minibyte / _V01 tag at the very end
+def strip_label(name):
+    """The name without its (byte) / (minibyte) / (tag) label. Only text that follows a _Un / _Vn counts as a label, so a story called 'BYTE' is untouched.
+    With VERSION_SUFFIX=off nothing is changed."""
+    if not suffix_on(): return name or ""
+    return LABEL_WORD.sub(r"\1", LABEL_PAREN.sub(r"\1", (name or "").strip())).strip()
+def label_of(name):
+    """'byte' for '111126_FIRE_V01 (byte)', '' when there is no label (text only; nothing is stored)."""
+    m = re.search(r"_[UV]\d+[ _\-]*\(([^()]*)\)|_[UV]\d+[ _\-]+(mini[ _\-]?byte|byte|tag)$", name or "", re.I)
+    return (m and (m.group(1) or m.group(2)) or "").strip().lower()
 def split_suffix(name):
     """With VERSION_SUFFIX=on: 111126_FIRE_U02 -> ('111126_FIRE', 'U', 2); None when the name has no _U/_V suffix or the switch is off."""
-    m = suffix_on() and SUF_RE.search(name or "")
+    name = strip_label(name); m = suffix_on() and SUF_RE.search(name or "")
     return None if not m else ((name or "")[:m.start()], m.group(1).upper(), int(m.group(2)))
 def name_base(name):
     """The name without its version: 111126_FIRE_V2 -> 111126_FIRE (and _U02 / _V01 with VERSION_SUFFIX=on)."""
-    return re.sub(r"_[UV]\d+$" if suffix_on() else r"_V\d+$", "", name or "", flags=re.I)
+    return re.sub(r"_[UV]\d+$" if suffix_on() else r"_V\d+$", "", strip_label(name), flags=re.I)
 
 def display_id(day, seq, slug, version=1, check=None):
     if check is None: check = os.getenv("CHECK_CHAR", "1") == "1"

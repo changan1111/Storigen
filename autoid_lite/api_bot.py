@@ -10,13 +10,13 @@ from __future__ import annotations
 import re
 from .common import HttpError
 from .api_blazeclips import merge_blaze
-from .ids import norm_name, suffix_on
+from .ids import norm_name, strip_label, suffix_on
 
 STRIP_RE = re.compile(r"(?:_[UV]\d+)+$", re.I)          # 111126_FIRE_V01_U02 -> 111126_FIRE
 MAXN = 99                                                # the rule book: two digits
 
 
-def base_of(name): return STRIP_RE.sub("", name or "")
+def base_of(name): return STRIP_RE.sub("", strip_label(name))
 
 
 def plan_names(base, rows):

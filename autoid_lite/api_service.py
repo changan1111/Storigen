@@ -1,6 +1,6 @@
 """Server methods for the feeds (poller, watcher, MOS gateway): story sync, files, media, attach confirmation, quick-attach, status."""
 from __future__ import annotations
-from .ids import chain_version, check_char, enc_version, id_format, kind_of, name_base, name_id, norm_name, split_suffix, un_of, vlabel
+from .ids import chain_version, check_char, enc_version, id_format, kind_of, name_base, name_id, norm_name, split_suffix, strip_label, un_of, vlabel
 import datetime as dt, json, time
 from .db import now_iso
 from .common import APP_VERSION, HttpError, STATES, opt
@@ -98,7 +98,7 @@ class ServiceMixin:
     @staticmethod
     def canon_name(name):
         """v10.5.0: 111126_fire_u2 and 111126_FIRE_U02 are one clip name (VERSION_SUFFIX=on); anything else is returned unchanged."""
-        sp = split_suffix(norm_name(name)); return name if not sp else "%s_%s%02d" % sp
+        name = strip_label(name); sp = split_suffix(norm_name(name)); return name if not sp else "%s_%s%02d" % sp
     refused = {}                  # v10.7.0: clip name -> why no clip ID was made for it (the 404's detail; the watcher puts it in its alert)
     AIRED_GRACE_MIN = 60          # v10.7.0: a bulletin that started more than this many minutes ago has aired: a new update / clip is not made for its story
     @staticmethod

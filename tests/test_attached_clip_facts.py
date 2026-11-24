@@ -69,4 +69,4 @@ def test_980_08_the_dashboard_shows_them_on_the_card_and_in_the_details():
     for k in ("MOS object ID", "Item ID", "Clip duration", "Blaze clip ID"): assert k in HTML, k + " in the details"
     assert "c.mos_object_id" in HTML and "c.item_id" in HTML and "c.attach_dur" in HTML
 
-def test_980_09_the_server_reports_10_5_0(srv): assert srv.call("GET", "/api/config")[1]["version"] == "10.18.2"
+def test_980_09_the_server_reports_10_5_0(srv): assert srv.call("GET", "/api/config")[1]["version"] == "11.0.0"

@@ -126,7 +126,7 @@ def test_the_page_has_play_on_the_added_clip_and_the_badge_without_version_suffi
     for t in ("/api/blaze-clip/preview?story=", "key=\"h\"+x.blaze_clip_id", "▶ Play preview", "No quality checks"): assert t in seg, t
     assert "No preview or checks" not in PAGE and "c.purl||" in PAGE and PAGE.count("c.purl||") == 2, "startPreview and its error check both use the clip's own address"
     assert "added in Blaze (not made by Storigen)" in PAGE[PAGE.index("function clipBadge("):PAGE.index("function card(")]
-    assert 'var APP_VER="10.18.2"' in PAGE
+    assert 'var APP_VER="11.0.0"' in PAGE
 
 
 # ---------- v10.18.1: the Groq connection on a Mac whose Python has no certificates ----------

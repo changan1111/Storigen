@@ -90,6 +90,8 @@ def parse_name(name: str):
     """Legacy IDs (YYYYMMDD_NNNNC_...): only date + number are used to match; slug typos cannot break it. -> (day, seq, version, check)
     v9.7 IDs (DDMMYY_STORY_NAME[_N][_Vn]): the WHOLE name is the ID (capitals do not matter). -> ("NAME", NAME_IN_CAPITALS, version, None)"""
     stem = os.path.splitext(name)[0]
+    if SUFFIX_ON:      # v11.0.0: 111126_FIRE_V01 (byte).mxf: whatever follows the version (byte / minibyte / tag) is a label for people and is ignored (stand-alone copy of ids.strip_label)
+        stem = re.sub(r"(_[UV]\d+)[ _\-]+(?:mini[ _\-]?byte|byte|tag)$", r"\1", re.sub(r"(_[UV]\d+)[ _\-]*\([^()]*\)", r"\1", stem.strip()), flags=re.I).strip()
     m = re.match(r"^(\d{8})_(\d{4})([A-Z])?(?:_|$)", stem)
     v = re.search(r"_V(\d+)$", stem)
     if m: return m.group(1), int(m.group(2)), int(v.group(1)) if v else 1, m.group(3)

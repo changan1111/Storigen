@@ -4,7 +4,7 @@ import datetime as dt
 import re
 import urllib.error, urllib.parse, urllib.request
 from .errors import BlazeError
-from ..ids import SUF_RE, enc_version, suffix_on
+from ..ids import SUF_RE, enc_version, strip_label, suffix_on
 
 
 def parse_day(text):
@@ -21,7 +21,7 @@ VER_RE = re.compile(r"_V(\d+)$", re.I)
 
 def ver_split(stem):
     """(name without its version ending, version). v10.5.0: with VERSION_SUFFIX=on, _Un and _Vn are two kinds (stored as 1000+n / 2000+n); off: only _Vn, as before."""
-    m = (SUF_RE if suffix_on() else VER_RE).search(stem)
+    stem = strip_label(stem); m = (SUF_RE if suffix_on() else VER_RE).search(stem)
     if not m: return stem, 1
     return stem[:m.start()], (enc_version(m.group(1), m.group(2)) if suffix_on() else int(m.group(1)))
 
@@ -34,7 +34,7 @@ def media_key(title):
 
 def name_key(stem):
     """v9.7 IDs match on the whole name (capitals do not matter), the version taken off the end: (BASE_NAME, version)."""
-    stem = re.sub(r"[^A-Z0-9]+", "_", (stem or "").upper()).strip("_")           # spaces, dashes and underscores are the same in a file name
+    stem = re.sub(r"[^A-Z0-9]+", "_", strip_label(stem).upper()).strip("_")      # v11.0.0: (byte) / (minibyte) after the version is ignored; spaces, dashes and underscores are the same in a file name
     if not NAME_RE.match(stem): return None
     return ver_split(stem)
 
