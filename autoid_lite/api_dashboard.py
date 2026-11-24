@@ -22,8 +22,18 @@ class DashboardMixin:
         """v10.9.5: the editor-name filter. The editors write their name in the slug's comment in Blaze (stories.editor); a story matches when that text equals one of the given names (any letter case).
         Several names, comma separated, at most 60. -> (sql, args) or (None, [])."""
         names = list(dict.fromkeys(u.strip().lower()[:120] for u in (editor or "").split(",") if u.strip()))[:60]
+        none = "__none__" in names; names = [n for n in names if n != "__none__"]               # v10.20.0: the token __none__ means "unassigned": the story carries no editor name
+        if not names and not none: return None, []
+        parts, args = [], []
+        if names: parts.append("LOWER(COALESCE(s.editor,'')) IN (%s)" % ",".join("?" * len(names))); args += names
+        if none: parts.append("TRIM(COALESCE(s.editor,''))=''")
+        return (parts[0] if len(parts) == 1 else "(" + " OR ".join(parts) + ")"), args
+    @staticmethod
+    def created_cond(created):
+        """v10.20.0: the Created-by filter. A story matches when the Blaze username that created it equals one of the given names (any letter case). Several names, comma separated, at most 60. -> (sql, args) or (None, [])."""
+        names = list(dict.fromkeys(u.strip().lower()[:80] for u in (created or "").split(",") if u.strip()))[:60]
         if not names: return None, []
-        return "LOWER(COALESCE(s.editor,'')) IN (%s)" % ",".join("?" * len(names)), names
+        return "LOWER(COALESCE(s.created_by,'')) IN (%s)" % ",".join("?" * len(names)), names
     @staticmethod
     def day_editors(cur, day, extra="", args=()):
         """v10.9.5: every editor name (slug comment) that a story of the day carries: [{name, n}] for the drop-down."""
@@ -51,7 +61,7 @@ class DashboardMixin:
         per = max(0, min(per, 200)); flt = (q.get("filter") or "all").lower()
         if flt not in ("all", "action", "nitro", "attention", "waiting", "done", "removed"): raise HttpError(400, "filter must be all, action, nitro, attention, waiting, done or removed")
         srt, dirn = (q.get("sort") or "").lower(), (q.get("dir") or "asc").lower()
-        if srt not in ("", "row", "title", "status"): raise HttpError(400, "sort must be row, title or status")
+        if srt not in ("", "row", "title", "status", "clips"): raise HttpError(400, "sort must be row, title, status or clips")
         if dirn not in ("asc", "desc"): raise HttpError(400, "dir must be asc or desc")
         hide = (q.get("hide_removed") or "").lower() in ("1", "true", "yes") and flt != "removed"
         ACT, DONE, NITRO, ATTN = ("ON_NITRO", "NEEDS_DESK", "ATTACH_SUBMITTED", "QUARANTINED"), ("ATTACHED",), ("ON_NITRO",), ("NEEDS_DESK", "QUARANTINED")
@@ -66,6 +76,8 @@ class DashboardMixin:
         if uc: where.append(uc); args += ua
         ec, ea = self.editor_cond(q.get("editor"))                                                       # v10.9.5: editor-name filter (the slug comment); it also narrows the bulletin list and its counts
         if ec: where.append(ec); args += ea
+        cc, ca = self.created_cond(q.get("created"))                                                     # v10.20.0: created-by filter (several names)
+        if cc: where.append(cc); args += ca
         nh_where, nh_args = list(where), list(args)                                                      # v10.9.4: the same without "hide removed", for the count of removed stories
         if hide: where.append("NOT (COALESCE(s.deleted,0)=1 AND c.state NOT IN ('ON_NITRO','NEEDS_DESK','ATTACH_SUBMITTED','QUARANTINED'))")
         tbl = "FROM clip_ids c JOIN stories s ON s.id=c.story_id JOIN rundowns ru ON ru.id=s.rundown_id WHERE "
@@ -81,7 +93,8 @@ class DashboardMixin:
         pos = "s.position IS NULL, s.position"
         order = {"row": "ORDER BY %s, s.position IS NULL, s.position %s, c.seq, c.id" % (rid, D),
                  "title": "ORDER BY LOWER(COALESCE(NULLIF(s.story_title,''), NULLIF(s.slug,''), c.display_id)) %s, %s, %s, c.seq, c.id" % (D, rid, pos),
-                 "status": "ORDER BY %s %s, %s, %s, c.seq, c.id" % (rank, D, rid, pos)}.get(srt) or (("ORDER BY CASE WHEN c.state IN ('ON_NITRO','NEEDS_DESK','ATTACH_SUBMITTED') THEN 0 ELSE 1 END, CAST(ru.blaze_rundown_id AS INTEGER), s.position IS NULL, s.position, c.seq, c.id") if per else "ORDER BY c.seq, c.id")
+                 "status": "ORDER BY %s %s, %s, %s, c.seq, c.id" % (rank, D, rid, pos),
+                 "clips": "ORDER BY (SELECT COUNT(*) FROM clip_ids c2 WHERE c2.story_id=c.story_id) %s, %s, %s, c.seq, c.id" % (D, rid, pos)}.get(srt) or (("ORDER BY CASE WHEN c.state IN ('ON_NITRO','NEEDS_DESK','ATTACH_SUBMITTED') THEN 0 ELSE 1 END, CAST(ru.blaze_rundown_id AS INTEGER), s.position IS NULL, s.position, c.seq, c.id") if per else "ORDER BY c.seq, c.id")
         with self.db.tx() as cur:
             by = {x["state"]: x["n"] for x in cur.q("SELECT c.state, COUNT(*) AS n " + base + " GROUP BY c.state", args)}
             shows = cur.q("SELECT ru.blaze_rundown_id AS id, ru.name, ru.start_at AS start, COUNT(*) AS n FROM clip_ids c JOIN stories s ON s.id=c.story_id JOIN rundowns ru ON ru.id=s.rundown_id WHERE c.day=? GROUP BY ru.id ORDER BY ru.start_at IS NULL, datetime(ru.start_at), CAST(ru.blaze_rundown_id AS INTEGER), ru.name", (d.isoformat(),))

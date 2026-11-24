@@ -260,6 +260,125 @@ body.fd-dock #botfab,body.fd-dock #bot{bottom:calc(min(42vh,420px) + 1rem)}body.
 .inst{display:inline-block;margin:.1rem .25rem .1rem 0;padding:0 .5rem;border-radius:999px;font-size:.75rem;background:var(--acb);color:var(--ac)}.insx{float:right;border:0;background:transparent;color:var(--mut);cursor:pointer;font-size:.9rem}
 .scf{display:flex;gap:.6rem;margin:.4rem 0;align-items:flex-start}.scf img{width:8rem;flex:0 0 auto;border-radius:8px;background:#000}.scf div{font-size:.88rem}.scf .v{font-weight:700}.scf .v.bad{color:var(--bad)}.scf .v.chk{color:var(--wn)}.scn{font-size:.82rem;color:var(--mut);margin:.3rem 0}
 .addb{border:1px solid var(--ac);color:var(--ac);background:transparent;border-radius:8px;padding:.2rem .6rem;margin-left:.4rem;font-size:.85rem;font-weight:600;cursor:pointer}.addb:hover:not(:disabled){background:var(--acb)}.addb:disabled{opacity:.45;cursor:not-allowed;border-style:dashed}.addm{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:70}.addm input[type=text]{width:100%;box-sizing:border-box}.addm>div{background:var(--card);color:var(--fg);width:560px;max-width:calc(100vw - 24px);max-height:92vh;overflow:auto;margin:12px;padding:18px;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+
+/* v10.19.0 compact spreadsheet layout: slim top bar, full-width story grid, script at the bottom, detail pane on the right. CSS only; no data or script logic changed. */
+body{font-size:12px;line-height:1.35}
+main{padding:.35rem .5rem calc(1rem + env(safe-area-inset-bottom,0px))}
+#mode{font-size:10px;margin:0 0 .2rem}
+.tb{gap:.4rem .6rem;padding:.25rem .5rem;border-radius:8px;margin:0 0 .3rem;flex-wrap:wrap}
+.tb>div:first-child{display:flex;align-items:center;gap:.4rem .6rem;flex-wrap:wrap}
+.tb h1{font-size:.85rem}.tb .dt{margin:0;gap:.3rem}.tb input,.tb select,.tb summary,.tb button{font-size:11px;padding:.12rem .4rem;border-radius:6px}
+.tb .mut,.tb small{font-size:10px}.tb input[type=search]{flex:0 1 14rem;min-width:8rem}
+.tb .cards{gap:.25rem;margin:0}.stat{padding:.05rem .45rem;min-width:0;border-radius:6px;display:flex;align-items:baseline;gap:.3rem}.stat b{font-size:.8rem}.stat small{display:inline;font-size:9px}
+.tb .xt{margin:0;gap:.3rem;flex:0 0 auto}.xt button{font-size:0;width:1.8rem;height:1.6rem;padding:0;border-radius:6px}
+#exp::before{content:"\2913";font-size:14px}#prt::before{content:"\2399";font-size:14px}
+.xt label.mut{font-size:0}.xt label.mut input{margin:0}.xt .badge{font-size:10px;padding:.1rem .4rem}
+#ready{margin:.2rem 0;padding:.2rem .6rem;font-size:11px;border-radius:6px}#ready button{padding:.05rem .5rem;font-size:11px}
+#newform{padding:.2rem .4rem;margin:.2rem 0;gap:.3rem;border-radius:6px}#newform input,#newform button{padding:.12rem .4rem;font-size:11px}#newform .hint{font-size:10px;margin:0}
+.sb,.pane,#lbody,#mid,#detail{scrollbar-width:thin;scrollbar-color:#9ca3af var(--idb)}
+.pane::-webkit-scrollbar,#lbody::-webkit-scrollbar{width:10px;height:10px}
+.pane::-webkit-scrollbar-track,#lbody::-webkit-scrollbar-track{background:var(--idb)}
+.pane::-webkit-scrollbar-thumb,#lbody::-webkit-scrollbar-thumb{background:#9ca3af;border-radius:5px}
+@media(min-width:1000px){
+.panes{grid-template-columns:minmax(0,1fr) 26rem;grid-template-rows:minmax(0,1.7fr) minmax(0,1fr);gap:.4rem;height:calc(100vh - 7.5rem);min-height:26rem}
+#lpane{grid-column:1;grid-row:1}#mid{grid-column:1;grid-row:2}#detail{grid-column:2;grid-row:1/3}
+}
+.pane{border-radius:8px;padding:.35rem .5rem}
+.ph2{margin-bottom:.25rem;gap:.4rem}.ph2 h2{font-size:.85rem}.ph2 select,.ph2 button{font-size:11px;padding:.1rem .4rem}.hrm{font-size:10px}
+.sh0,.sr{grid-template-columns:2.4rem minmax(0,1fr) 7rem;gap:0;padding:0;align-items:stretch;font-size:11px;line-height:20px}
+.sh0{background:var(--idb);border:1px solid var(--bd);font-size:10px}
+.sh0>*,.sr>*{border-right:1px solid var(--bd);padding:0 .4rem;overflow:hidden;white-space:nowrap;min-width:0}
+.sh0>*:last-child,.sr>*:last-child{border-right:0}
+.sr{border-radius:0;border-left:1px solid var(--bd);border-right:1px solid var(--bd)}
+.sr .n{background:var(--idb);color:var(--mut);text-align:center}
+.sr.sel{background:var(--acb);outline:1px solid var(--ac);outline-offset:-1px}
+.sr .tag,.sr .badge{font-size:10px;padding:0 .4rem;line-height:16px;align-self:center;justify-self:start}
+.pager{margin-top:.2rem;font-size:10px}.pager button{padding:.05rem .4rem;font-size:10px}
+#mid{font-size:11px}#mid .tabs{margin-bottom:.25rem;gap:.25rem;align-items:center}#mid .tabs button,#mid button{padding:.1rem .5rem;font-size:11px}
+#mid .sbody{padding:.4rem .6rem;min-height:3rem;border-radius:6px}#mid .sbody h3{font-size:.95rem;margin:0 0 .3rem}#mid .stx{line-height:1.45}
+#detail{font-size:11px}#detail .box{padding:.3rem .5rem;margin:.3rem 0;border-radius:8px}#detail .kv{gap:.3rem .6rem;margin:.35rem 0}
+#detail button{padding:.1rem .5rem;font-size:11px}#detail h2,#detail h3{font-size:.85rem;margin:.4rem 0 .2rem}#detail .id{font-size:11px}
+/* v10.19.0 fixes: keep the top bar on one row on wide screens, and size the panes to what is left of the screen */
+@media(min-width:1200px){.tb{flex-wrap:nowrap}.tb>div:first-child{flex:1 1 auto;min-width:0}.tb .cards{flex:0 0 auto;flex-wrap:nowrap}.tb input[type=search]{flex:0 1 12rem;min-width:7rem}}
+.tb #pause{font-size:10px;padding:0}.tb #upd{font-size:10px}
+@media(min-width:1000px){.panes{height:calc(100vh - 9.5rem)}}
+
+/* v10.19.1: pill, grey stats, desk marker, + ID popover, collapsed details, icon-only menu */
+.tb #ready{order:5;display:inline-flex;align-items:center;gap:.35rem;margin:0;padding:.05rem .2rem .05rem .55rem;border-radius:999px;background:var(--wnb);color:var(--wn);border:1px solid var(--wn);font-size:11px;font-weight:600;white-space:nowrap}
+.tb #ready.hide{display:none}.tb #ready button{padding:.02rem .45rem;font-size:10px;border-radius:999px}
+.tb .cards .stat{background:none;border:0;color:var(--mut)}.tb .cards .stat small{color:var(--mut)}.tb .cards .stat b{color:var(--mut);font-weight:600}
+.tb .cards .stat.hot b,.tb .cards .stat.hot small{color:var(--bad);font-weight:700}
+.sr.desk{box-shadow:inset 3px 0 0 var(--bad)}
+#newform{display:none}#newform.open:not(.hide){display:flex}.newb{background:var(--ac)!important;border-color:var(--ac)!important;color:#fff!important;font-size:11px!important;padding:.1rem .6rem!important;height:1.6rem;border-radius:6px;white-space:nowrap}.newb.hide{display:none}
+#detail details.more>summary{cursor:pointer;font-weight:700;color:var(--ac)}
+@media(min-width:1000px){:root{--rw:3.6rem}
+.hdr .nav button .lb,.hdr .nav a .lb,.hdr button#out .lb{display:none}
+.hdr .nav button,.hdr .nav a{padding:.55rem 0}.hdr .vb,.hdr .who{display:none}
+.hdr .nf-plate{padding:.15rem}.hdr .nf-plate img{max-height:1.4rem}
+.hdr .sys{font-size:0;width:.8rem;height:.8rem;padding:0;align-self:center;border-radius:50%;margin-top:auto}
+#feedbtn .fb{right:.2rem}}
+/* v10.19.2: polish */
+.sr.desk{box-shadow:none;border-left:3px solid var(--bad)}
+.tb #ready{flex:0 0 auto;flex-wrap:nowrap;white-space:nowrap}.tb #ready>*{flex:none}
+.tb .cards .stat{padding:0 .25rem}.tb #keepn{display:none}.xt .badge:empty{display:none}
+@media(min-width:1200px){.tb input[type=search]{flex:0 1 9rem;min-width:6rem}}
+#detail .idv b{font-size:12px;word-break:break-all}#detail .idv button{padding:.1rem .5rem;font-size:11px}
+
+/* v10.19.4 spreadsheet columns in the rundown grid; header scrolls with the columns */
+.sh0,.sr{grid-template-columns:2.4rem minmax(14rem,1fr) 6.5rem 3rem 8rem 8rem 8rem 15rem 4.5rem;min-width:66rem}
+#lbody>.sh0{position:sticky;top:0;z-index:2}
+.sr .c,.sh0 .c{text-align:center}.sr .mono{font:11px ui-monospace,Menlo,Consolas,monospace}
+/* v10.19.5: column alignment for desk rows, fit 1440px screens */
+.sh0,.sr{border-left:3px solid transparent;grid-template-columns:2.4rem minmax(12rem,1fr) 6.5rem 3rem 7rem 6.5rem 6.5rem 13rem 4.5rem;min-width:60rem}
+.sh0{border-left-color:var(--bd)}.sr.desk{border-left-color:var(--bad)}
+.sr .mono{font:11px/20px ui-monospace,Menlo,Consolas,monospace}
+/* v10.19.6: no Clip ID column; the clip count stays */
+.sh0,.sr{grid-template-columns:2.4rem minmax(12rem,1fr) 6.5rem 3rem 8rem 7rem 7rem 4.5rem;min-width:46rem}
+
+/* v10.20.0 header drop-downs (Editor, Created by) and the Clips sort button */
+.sh0 .upick summary{border:0;background:none;padding:0;font:inherit;font-weight:700;color:inherit;max-width:100%;border-radius:0}
+.sh0 .upick summary::after{content:" \25BE"}.sh0 .upick .upp{position:fixed;font-weight:400;font-size:11px;white-space:normal}
+.sh0 .shb.c{text-align:center}
+
+/* v10.21.0 expand button on each box (rundown, script, details): the box fills the whole area; Esc or the button again restores it. The right pane is a little wider. */
+.xp{display:none}
+@media(min-width:1000px){
+.xp{display:inline-flex;align-items:center;justify-content:center;z-index:5;align-self:start;justify-self:end;margin:.3rem .5rem 0 0;width:1.5rem;height:1.5rem;padding:0;border:1px solid var(--bd);border-radius:6px;background:var(--card);color:var(--mut);cursor:pointer}
+.xp:hover{color:var(--ac);border-color:var(--ac)}.xp .r{display:none}.xp.on .r{display:inline}.xp.on .e{display:none}
+.xp[data-p=l]{grid-column:1;grid-row:1}.xp[data-p=m]{grid-column:1;grid-row:2}.xp[data-p=d]{grid-column:2;grid-row:1/3}
+#split[data-max=l]>#mid,#split[data-max=l]>#detail,#split[data-max=l]>.xp:not([data-p=l]),#split[data-max=m]>#lpane,#split[data-max=m]>#detail,#split[data-max=m]>.xp:not([data-p=m]),#split[data-max=d]>#lpane,#split[data-max=d]>#mid,#split[data-max=d]>.xp:not([data-p=d]){display:none}
+#split[data-max=l]>#lpane,#split[data-max=m]>#mid,#split[data-max=d]>#detail,#split[data-max]>.xp.on{grid-column:1/3;grid-row:1/3}
+}
+@media(min-width:1000px){#lpane>.ph2,#mid>:first-child,#detail>:first-child{margin-right:1.9rem}}      /* room for the expand button */
+/* v10.21.1: no wide empty gap in the story rows (the spare width is shared by the columns), a larger story name, a right pane that grows with the screen */
+@media(min-width:1000px){
+.panes{grid-template-columns:minmax(0,1fr) clamp(26rem,26vw,42rem)}
+.sh0,.sr{grid-template-columns:2.6rem minmax(18rem,2.4fr) 6.5rem 3.2rem minmax(7rem,1fr) minmax(7rem,1fr) minmax(8rem,1fr) 5rem;min-width:70rem}
+.sr{font-size:12px;line-height:24px}.sr .tt{font-size:13.5px;font-weight:500}
+.sh0{font-size:11px;line-height:22px}
+}
+/* v10.22.0 drag the borders and the corner between the boxes to resize them with the mouse; the sizes are remembered; double-click a handle to reset */
+.rzv,.rzh,.rzc{display:none}
+@media(min-width:1000px){
+.panes{grid-template-columns:minmax(0,1fr) var(--dwx,clamp(26rem,26vw,42rem));grid-template-rows:var(--thx,minmax(0,1.7fr)) minmax(0,1fr)}
+.rzv,.rzh,.rzc{display:block;position:relative;z-index:6;touch-action:none;border-radius:4px}
+.rzv{grid-column:1;grid-row:1/3;justify-self:end;width:12px;margin-right:-.5rem;cursor:col-resize}
+.rzh{grid-column:1;grid-row:1;align-self:end;height:12px;margin-bottom:-.5rem;cursor:row-resize}
+.rzc{grid-column:1;grid-row:1;justify-self:end;align-self:end;width:18px;height:18px;margin:0 -.6rem -.6rem 0;cursor:nwse-resize;z-index:7}
+.rzv:hover,.rzh:hover,.rzc:hover,.rzv.on,.rzh.on,.rzc.on,.rzv:focus-visible,.rzh:focus-visible,.rzc:focus-visible{background:var(--ac);opacity:.45;outline:0}
+#split[data-max]>.rzv,#split[data-max]>.rzh,#split[data-max]>.rzc{display:none}
+body.rsz,body.rsz *{user-select:none!important}
+}
+/* v10.22.1: no Assigned to column; the right box wraps its cards instead of overflowing when it is made narrow */
+@media(min-width:1000px){
+.sh0,.sr{grid-template-columns:2.6rem minmax(18rem,2.6fr) 6.5rem 3.2rem minmax(8rem,1fr) minmax(8rem,1fr) 5rem;min-width:56rem}
+}
+#detail{container-type:inline-size;overflow-x:hidden}
+#detail .box,#detail .gal,#detail .sec,#detail .wf{max-width:100%;box-sizing:border-box}
+#detail .gal .gh{flex-wrap:wrap}#detail .gha{justify-content:flex-end;flex:0 1 auto}
+#detail .gi .tag{white-space:normal;max-width:100%;overflow-wrap:anywhere}#detail .gi h4,#detail .gi .gk,#detail .gi .hint{overflow-wrap:anywhere}
+#detail .idv,#detail .acts,#detail .mbar{flex-wrap:wrap}
+@container (max-width:26rem){#detail .gi{grid-template-columns:minmax(0,1fr)}#detail .gt{max-width:9rem}}
 </style></head><body>
 <div id="login" class="hide">
   <div class="lg-card">
@@ -285,17 +404,14 @@ body.fd-dock #botfab,body.fd-dock #bot{bottom:calc(min(42vh,420px) + 1rem)}body.
   <main id="top">
   <div id="warn"></div><div id="mode" class="mut"></div>
   <div id="tab-rundown">
-  <div class="tb"><div><h1>Newsroom Rundown</h1><div class="dt"><input type="date" id="day" aria-label="Date"><small class="mut" id="keepn"></small><select id="showf" aria-label="Bulletin"></select><details id="userf" class="upick" title="Tick one or more Blaze users: shows the stories they created or are assigned to"><summary>All users</summary><div class="upp"><input type="search" class="ups" placeholder="Type to search users" aria-label="Search users" autocomplete="off"><div class="upl"></div></div></details><details id="editf" class="upick" title="Tick one or more editors: shows the stories that carry their name in the Blaze slug comment"><summary>All editors</summary><div class="upp"><input type="search" class="ups" placeholder="Type to search editors" aria-label="Search editors" autocomplete="off"><div class="upl"></div></div></details></div><div class="mut" id="sub"></div><span class="mut" id="upd" title="When this page last got fresh data from the server"></span><button class="link" id="pause" type="button" aria-pressed="false" title="Stop the automatic refresh, for example to inspect the page (P)">Pause refresh</button></div>
-   <div class="cards" id="stats"></div><input type="search" id="q" placeholder="Search story / ID / keyword / editor" aria-label="Search"></div>
-  <div class="xt"><button id="exp" type="button">Export CSV</button><button id="prt" type="button">Print</button><label class="mut"><input type="checkbox" id="beep"> beep when a clip is ready or needs the desk</label><span class="badge" id="modeb"></span></div>
-  <div id="ready" class="notice hide" role="status"></div>
-  <form class="row" id="newform" onsubmit="return false"><input id="rd" list="rdl" placeholder="Rundown name (as shown in Blaze)" style="flex:1 1 240px"><datalist id="rdl"></datalist>
+  <div class="tb"><div id="ready" class="notice hide" role="status"></div><div><h1>Newsroom Rundown</h1><div class="dt"><input type="date" id="day" aria-label="Date"><small class="mut" id="keepn"></small><select id="showf" aria-label="Bulletin"></select><details id="userf" class="upick" title="Tick one or more Blaze users: shows the stories they created or are assigned to"><summary>All users</summary><div class="upp"><input type="search" class="ups" placeholder="Type to search users" aria-label="Search users" autocomplete="off"><div class="upl"></div></div></details></div><div class="mut" id="sub"></div><span class="mut" id="upd" title="When this page last got fresh data from the server"></span><button class="link" id="pause" type="button" aria-pressed="false" title="Stop the automatic refresh, for example to inspect the page (P)">Pause refresh</button></div>
+   <div class="cards" id="stats"></div><input type="search" id="q" placeholder="Search story / ID / keyword / editor" aria-label="Search"><div class="xt"><button id="exp" type="button" title="Export CSV" aria-label="Export CSV">Export CSV</button><button id="prt" type="button" title="Print" aria-label="Print">Print</button><label class="mut" title="Beep when a clip is ready or needs the desk"><input type="checkbox" id="beep" aria-label="Beep when a clip is ready or needs the desk"> beep</label><button id="newbtn" type="button" class="newb hide" title="Create an ID by hand" aria-expanded="false">+ ID</button><span class="badge" id="modeb"></span></div></div>
+      <form class="row" id="newform" onsubmit="return false"><input id="rd" list="rdl" placeholder="Rundown name (as shown in Blaze)" style="flex:1 1 240px"><datalist id="rdl"></datalist>
     <input id="st" placeholder="Story name (as shown in Blaze)" style="flex:1 1 260px"><button class="ok" id="madd">Create ID</button><div class="hint mut" id="newhint"></div></form>
   <div id="made" class="made hide"></div>
   <div class="panes" id="split">
-   <div class="pane" id="lpane"><div class="ph2"><h2 id="lh">Rundown</h2><select id="fsel" aria-label="Filter"></select><label class="hrm" title="Leave out the struck-out stories that need nothing from the desk. One still on Nitro or held stays: it needs the desk."><input type="checkbox" id="hrm">Hide removed</label><button type="button" class="link hide" id="srt" title="Back to the default order: needing action first, then the bulletin order"></button></div><div class="sh0"><button type="button" class="shb" data-k="row" title="Sort by row number (click again: descending, again: back to the default order)">#</button><button type="button" class="shb" data-k="title" title="Sort by story title">Story Title</button><button type="button" class="shb" data-k="status" title="Sort by status: needs the desk first">Status</button></div>
-    <div id="lbody"><div class="pager" id="pagerTop" style="display:none"></div><div id="list"></div><div class="pager" id="pager"></div></div></div>
-   <div class="pane" id="mid"></div><div class="pane" id="detail"></div></div>
+   <div class="pane" id="lpane"><div class="ph2"><h2 id="lh">Rundown</h2><select id="fsel" aria-label="Filter"></select><label class="hrm" title="Leave out the struck-out stories that need nothing from the desk. One still on Nitro or held stays: it needs the desk."><input type="checkbox" id="hrm">Hide removed</label><button type="button" class="link hide" id="srt" title="Back to the default order: needing action first, then the bulletin order"></button></div>    <div id="lbody"><div class="sh0"><button type="button" class="shb" data-k="row" title="Sort by row number (click again: descending, again: back to the default order)">#</button><button type="button" class="shb" data-k="title" title="Sort by story title">Story Title</button><button type="button" class="shb" data-k="status" title="Sort by status: needs the desk first">Status</button><button type="button" class="shb c" data-k="clips" title="Sort by the number of clips (click again: descending, again: back to the default order)">Clips</button><span><details id="editf" class="upick" title="Tick one or more editors: shows the stories that carry their name in the Blaze slug comment"><summary>Editor</summary><div class="upp"><input type="search" class="ups" placeholder="Type to search editors" aria-label="Search editors" autocomplete="off"><div class="upl"></div></div></details></span><span><details id="createdf" class="upick" title="Tick one or more Blaze users: shows the stories they created"><summary>Created by</summary><div class="upp"><input type="search" class="ups" placeholder="Type to search users" aria-label="Search creators" autocomplete="off"><div class="upl"></div></div></details></span><span>Bulletin</span></div><div class="pager" id="pagerTop" style="display:none"></div><div id="list"></div><div class="pager" id="pager"></div></div></div>
+   <div class="pane" id="mid"></div><div class="pane" id="detail"></div><div class="rzv" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to make the right box wider or narrower (double-click: reset)" aria-label="Resize the right box"></div><div class="rzh" role="separator" aria-orientation="horizontal" tabindex="0" title="Drag to make the rundown taller or shorter (double-click: reset)" aria-label="Resize the rundown and script boxes"></div><div class="rzc" tabindex="0" title="Drag the corner to resize both (double-click: reset)" aria-label="Resize both"></div><button type="button" class="xp" data-p="l" title="Expand the rundown" aria-label="Expand the rundown"><svg class="e" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><svg class="r" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg></button><button type="button" class="xp" data-p="m" title="Expand the script" aria-label="Expand the script"><svg class="e" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><svg class="r" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg></button><button type="button" class="xp" data-p="d" title="Expand the details" aria-label="Expand the details"><svg class="e" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><svg class="r" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg></button></div>
   </div>
   <aside id="feed" class="hide" aria-label="Ready feed"><div class="fh"><h2>Ready feed</h2><span class="fhs" id="fhs"></span><div class="fbt"><button id="feeddock" type="button"></button><button id="feedmin" type="button" title="Minimize: keep only a thin bar so the dashboard is free" aria-label="Minimize the ready feed">▁</button><button id="feedmax" type="button" title="Maximize: fill the screen" aria-label="Maximize the ready feed">☐</button><button id="feedx" type="button" aria-label="Close the ready feed" title="Close (Esc)">✕</button></div></div>
   <div class="fc"><input type="search" id="fq" placeholder="Search story, clip ID, story ID, MOS ID, media, bulletin, username, editor" aria-label="Search the ready feed"><select id="fst" aria-label="Show"><option value="all">All</option><option value="ready">Ready to attach</option><option value="attached">Attached</option><option value="problem">Needs attention</option></select><select id="fbul" aria-label="Bulletin" title="Only the clips of this bulletin"></select><details id="fusr" class="upick" title="Tick one or more Blaze users: only the stories they created or are assigned to"><summary>All users</summary><div class="upp"><input type="search" class="ups" placeholder="Type to search users" aria-label="Search users" autocomplete="off"><div class="upl"></div></div></details><details id="fedit" class="upick" title="Tick one or more editors: only the stories that carry their name in the Blaze slug comment"><summary>All editors</summary><div class="upp"><input type="search" class="ups" placeholder="Type to search editors" aria-label="Search editors" autocomplete="off"><div class="upl"></div></div></details></div>
@@ -341,10 +457,11 @@ const can=p=>me&&me.perms.includes(p), PH=()=>cfg.link_mode==="placeholder";
 const ready=c=>["ON_NITRO","NEEDS_DESK","ATTACH_SUBMITTED"].includes(c.state)?1:0;
 const group=c=>c.state==="ATTACHED"?"done":(ready(c)||c.state==="QUARANTINED")?"action":"waiting";
 const NICE={WAITING_FOR_CLIP:"Waiting for the export",EXPORTING:"Export seen, converting",VERIFIED:"Verified in Playout",ON_NITRO:"On Nitro: ready to attach",ATTACH_SUBMITTED:"Attach submitted",ATTACHED:"Attached and verified",NEEDS_DESK:"Needs the desk",QUARANTINED:"Quarantined: file problem"};
-let filter=["all","nitro","attention","action","waiting","done","removed"].includes(lsGet("autoid_filter"))?lsGet("autoid_filter"):"all",sel=null,clips=[],page=1,sortKey=(["row","title","status"].includes((lsGet("autoid_sort")||"").split(":")[0])?lsGet("autoid_sort").split(":")[0]:""),sortDir=((lsGet("autoid_sort")||"").split(":")[1]==="desc"?"desc":"asc"),hideRm=lsGet("autoid_hide_rm")==="1",lastOk=0,retInfo=null,retAt=0,per=[25,50,100,200].includes(Number(lsGet("autoid_per")))?Number(lsGet("autoid_per")):50,showf=lsGet("autoid_show")||"",userf=lsGet("autoid_user")||"",editf=lsGet("autoid_editor")||"",editors=[],users=[],qtext="",total=0,pages=1,bulletins=[],dayc={all:0,action:0,waiting:0,done:0,on_nitro:0,needs_desk:0,attached:0},prevNitro=null,sigBul="",curPer=50,view="group",counts={all:0,action:0,waiting:0,done:0,on_nitro:0,needs_desk:0,attached:0},shows=[],qtimer=null,sigShows="",sigPager="";
+let filter=["all","nitro","attention","action","waiting","done","removed"].includes(lsGet("autoid_filter"))?lsGet("autoid_filter"):"all",sel=null,clips=[],page=1,sortKey=(["row","title","status","clips"].includes((lsGet("autoid_sort")||"").split(":")[0])?lsGet("autoid_sort").split(":")[0]:""),sortDir=((lsGet("autoid_sort")||"").split(":")[1]==="desc"?"desc":"asc"),hideRm=lsGet("autoid_hide_rm")==="1",lastOk=0,retInfo=null,retAt=0,per=[25,50,100,200].includes(Number(lsGet("autoid_per")))?Number(lsGet("autoid_per")):50,showf=lsGet("autoid_show")||"",userf=lsGet("autoid_user")||"",editf=lsGet("autoid_editor")||"",editors=[],users=[],qtext="",total=0,pages=1,bulletins=[],dayc={all:0,action:0,waiting:0,done:0,on_nitro:0,needs_desk:0,attached:0},prevNitro=null,sigBul="",curPer=50,view="group",counts={all:0,action:0,waiting:0,done:0,on_nitro:0,needs_desk:0,attached:0},shows=[],qtimer=null,sigShows="",sigPager="";
 function setShow(v){showf=v;lsSet("autoid_show",v)}
 function setUser(v){userf=v;lsSet("autoid_user",v)}
 function setEditor(v){editf=v;lsSet("autoid_editor",v)}
+let createdf=lsGet("autoid_created")||"";function setCreated(v){createdf=v;lsSet("autoid_created",v)}
 let pgTab=["rundown","feed","activity","users","support","missing","smoke","insights"].includes(lsGet("autoid_tab"))?lsGet("autoid_tab"):"rundown",evHours=[1,2,4].includes(Number(lsGet("autoid_evh")))?Number(lsGet("autoid_evh")):1;
 function syncTab(){      // v10.9.5: show the one tab that is chosen; a tab the person may not use falls back to the Rundown
   if(me&&!(pgTab==="rundown"||pgTab==="feed"||(pgTab==="activity"&&can("events"))||(pgTab==="users"&&can("users"))||(pgTab==="support"&&cfg.support!==false)||pgTab==="insights"||(pgTab==="missing"&&featOf("missing_board").on)||(pgTab==="smoke"&&featOf("smoke_test").on))){pgTab="rundown";lsSet("autoid_tab",pgTab)}
@@ -423,7 +540,7 @@ function hintFor(c){
   if(c.state==="ON_NITRO")return PH()?"On Nitro. In Blaze the red placeholder clip should now turn green. If it does not: open the story, Media Search, Playout tab, search this ID and click the paperclip. Then press Mark done.":"On Nitro. Open the story in Blaze, Media Search, Playout tab, search this ID and click the paperclip. Then press Mark attached.";
   if(c.state==="WAITING_FOR_CLIP")return PH()?"Paste this ID into the placeholder's Media Slug in the story, then export the file with exactly this name to Playout.":"Export the file with exactly this name to Playout.";
   if(c.state==="EXPORTING")return"File seen in Playout, waiting for the converted file on Nitro.";return""}
-function stat(label,n,sub){const d=el("div","stat");d.append(el("small",null,label),el("b",null,n),el("span",null,sub));return d}
+function stat(label,n,sub){const d=el("div","stat"+(label==="Needs Desk"&&Number(n)>0?" hot":""));d.append(el("small",null,label),el("b",null,n),el("span",null,sub));return d}
 function renderShows(){const f=$("#showf"),keep=showf,sg=JSON.stringify(shows.map(x=>[x.id,x.name,x.n,x.start]))+"|"+keep;if(sg===sigShows)return;sigShows=sg;       // rebuilt only when it changed, so an open drop-down is not closed by the 5 s refresh
   f.replaceChildren();const o=el("option",null,"All shows");o.value="";f.append(o);
   for(const x of shows){const e=el("option",null,(fmtHM(x.start)?fmtHM(x.start)+" · ":"")+(x.name||"Show "+x.id)+" ("+x.n+")");e.value=x.id;f.append(e)}f.value=shows.some(x=>x.id===keep)?keep:"";if(f.value!==keep)showf=f.value}
@@ -519,12 +636,12 @@ function card(c){
 function fmtT(x){if(!x)return"";const d=new Date(x);return isNaN(d)?"":d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}
 function pickBulletin(){const now=Date.now();let b=bulletins.find(x=>x.nitro>0);if(!b){const past=bulletins.filter(x=>x.start&&new Date(x.start)<=now);b=past.length?past[past.length-1]:bulletins[0]}return b?b.id:""}
 function readyNotice(){const n=dayc.on_nitro+dayc.needs_desk;document.title=(n?"("+n+") ":"")+"Storigen";const box=$("#ready");
-  if(prevNitro!==null&&n>prevNitro){const k=n-prevNitro;box.replaceChildren(el("span",null,k+" new clip"+(k>1?"s":"")+" ready on Nitro or waiting for the desk ("+n+" in total)"));const g=el("button","ok","Show them");g.onclick=()=>{filter="action";lsSet("autoid_filter","action");page=1;box.classList.add("hide");load()};const x=el("button",null,"Dismiss");x.onclick=()=>box.classList.add("hide");box.append(g,x);box.classList.remove("hide");
+  if(prevNitro!==null&&n>prevNitro&&n>dismissedN){const k=n-prevNitro;box.replaceChildren(el("span",null,k+" new clip"+(k>1?"s":"")+" ready · "+n+" need action"));const g=el("button","ok","Show them");g.onclick=()=>{filter="action";lsSet("autoid_filter","action");page=1;dismissedN=dayc.on_nitro+dayc.needs_desk;box.classList.add("hide");load()};const x=el("button",null,"Dismiss");x.onclick=()=>{dismissedN=dayc.on_nitro+dayc.needs_desk;box.classList.add("hide")};box.append(g,x);box.classList.remove("hide");
     if($("#beep").checked)try{const a=new (window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator();o.connect(a.destination);o.frequency.value=880;o.start();o.stop(a.currentTime+.25)}catch(e){}}
-  if(!n)box.classList.add("hide");prevNitro=n}
+  if(!n){box.classList.add("hide");dismissedN=0}prevNitro=n}
 async function load(){
   try{
-    const qs=new URLSearchParams({page,per_page:view==="group"?200:per,filter});if($("#day").value)qs.set("day",$("#day").value.replaceAll("-",""));if(showf)qs.set("show",showf);if(userf)qs.set("user",userf);if(editf)qs.set("editor",editf);if(qtext)qs.set("q",qtext);if(sortKey){qs.set("sort",sortKey);qs.set("dir",sortDir)}if(hideRm&&filter!=="removed")qs.set("hide_removed","1");
+    const qs=new URLSearchParams({page,per_page:view==="group"?200:per,filter});if($("#day").value)qs.set("day",$("#day").value.replaceAll("-",""));if(showf)qs.set("show",showf);if(userf)qs.set("user",userf);if(editf)qs.set("editor",editf);if(createdf)qs.set("created",createdf);if(qtext)qs.set("q",qtext);if(sortKey){qs.set("sort",sortKey);qs.set("dir",sortDir)}if(hideRm&&filter!=="removed")qs.set("hide_removed","1");
     const d=await api("/api/clips?"+qs);
     if(!$("#day").value)$("#day").value=d.day; clips=d.clips;total=d.total;pages=d.pages;counts=d.counts;shows=d.shows;bulletins=d.bulletins||[];users=d.users||[];editors=d.editors||[];dayc=d.day_counts||d.counts;curPer=d.per_page||per;
     if(view!=="group"&&showf&&!shows.some(x=>x.id===showf)){setShow("");page=1;return load()}      // a remembered show that is not in this day
@@ -537,7 +654,7 @@ async function load(){
     if(!wch)st.problems.forEach((p,i)=>{const n=$("#warn").children[i];if(n)setText(n,"Service problem: "+p+" - work manually as usual.")});setText($("#sys"),st.problems.length?"SERVICE PROBLEM":"SYSTEM ONLINE");toggleCls($("#sys"),"bad",st.problems.length>0);
     if(wch&&me.days_left!=null&&me.days_left<=7)$("#warn").append(el("div","warn soon","Your access ends "+(me.days_left<=0?"today":"in "+me.days_left+" day(s) ("+me.valid_upto+")")+". Please contact the admin to extend it."));
     const rl=await api("/api/rundowns");if(changed("rdl",rl))$("#rdl").replaceChildren(...rl.map(n=>{const o=el("option");o.value=n;return o}));
-    renderStats();renderChips();renderSortHead();loadRetention();renderBul();renderUsers();renderEditors();readyNotice();renderList();renderPager();await showDetail(false);await loadFeed();
+    renderStats();renderChips();renderSortHead();loadRetention();renderBul();renderUsers();renderEditors();renderCreated();readyNotice();renderList();renderPager();await showDetail(false);await loadFeed();
     await loadTab();
   }catch(e){if(e.message!=="login"){$("#sub").textContent="Cannot reach the service - work manually as usual."+(lastOk?" Last updated "+new Date(lastOk).toLocaleTimeString("en-GB")+".":"");toggleCls($("#sub"),"stale",true)}}
 }
@@ -564,7 +681,7 @@ async function loadTab(){      // v10.9.5: only the tab on screen asks the serve
 function setMode(){
   $("#modeb").textContent=PH()?"PLACEHOLDER MODE":"STORY-ID MODE";
   $("#mode").textContent=PH()?"Placeholder mode: type the rundown and story name exactly as in Blaze, get the ID, paste it into the placeholder's Media Slug in that story.":"Story-ID mode: IDs appear by themselves when Blaze reports a story with its own story ID.";
-  $("#newform").classList.toggle("hide",!cfg.manual_enabled);
+  $("#newform").classList.toggle("hide",!cfg.manual_enabled);$("#newbtn").classList.toggle("hide",!cfg.manual_enabled);
   $("#newhint").textContent=PH()?"Copy the names straight from Blaze so they match exactly.":"Fallback only: use this when a story did not appear by itself."}
 async function boot(){try{me=await api("/api/me");cfg=await api("/api/config");$("#who").textContent=me.email+" ("+me.role+")"+(me.valid_upto?" · valid upto "+me.valid_upto:"");$("#ver").textContent="Storigen "+APP_VER+(cfg.version&&cfg.version.indexOf(APP_VER)<0?" · server "+cfg.version:"");$("#av").textContent=(me.email||"?")[0].toUpperCase();setMode();show(true);syncTab();{const m=/^#s(\d+)$/.exec(location.hash);if(m&&sel==null)sel=+m[1]}load();supPoll();featApply(cfg.features);botBuild()}catch(e){show(false)}}
 $("#peye").onclick=()=>{const p=$("#p"),h=p.type==="password";p.type=h?"text":"password";$("#peye").classList.toggle("on",h);$("#peye").setAttribute("aria-label",h?"Hide password":"Show password");p.focus()};
@@ -577,12 +694,28 @@ async function create(confirmDup){const rd=$("#rd").value.trim(),st=$("#st").val
     const b=el("button","ok","Copy ID");b.onclick=()=>copy(c.name_id||c.display_id,b);m.append(b);
     m.append(el("div","hint",PH()?"Next: in Blaze open this story, Media Search, Placeholder, paste the ID into Media Slug, Save. Then export the file with exactly this name.":"Export the file with exactly this name."));m.classList.remove("hide");load()}
   catch(e){if(e.status===409&&e.data&&e.data.duplicate){if(confirm(e.message+"\n\nCreate another ID anyway?"))create(true)}else if(e.message!=="login")alert(e.message)}}
-$("#madd").onclick=()=>create(false);
-$("#nadd").onclick=async()=>{try{await post("/api/users",{email:$("#ne").value.trim(),full_name:$("#nn").value.trim()||null,password:$("#np").value,role:$("#nr").value,valid_upto:$("#nv").value||null});$("#ne").value=$("#nn").value=$("#np").value="";load()}catch(e){alert(e.message)}};
-$("#day").onchange=()=>{sel=null;page=1;setShow("");prevNitro=null;load()};
+$("#madd").onclick=()=>create(false);$("#newbtn").onclick=()=>{const f=$("#newform");f.classList.toggle("open");$("#newbtn").setAttribute("aria-expanded",f.classList.contains("open")?"true":"false");if(f.classList.contains("open"))$("#rd").focus()};
+{const sp=$("#split"),K={w:"autoid_dw",h:"autoid_th"};      // v10.22.0: drag-to-resize (right box width, rundown height)
+  const put=(w,h)=>{if(w!=null)sp.style.setProperty("--dwx","min("+Math.round(w)+"px,70vw)");if(h!=null)sp.style.setProperty("--thx","min("+Math.round(h)+"px,calc(100% - 7rem))")};
+  const clear=(w,h)=>{if(w){sp.style.removeProperty("--dwx");lsSet(K.w,"")}if(h){sp.style.removeProperty("--thx");lsSet(K.h,"")}};
+  const w0=Number(lsGet(K.w))||0,h0=Number(lsGet(K.h))||0;put(w0||null,h0||null);
+  const drag=(h,dx,dy)=>{h.addEventListener("pointerdown",e=>{if(e.button)return;e.preventDefault();h.setPointerCapture(e.pointerId);h.classList.add("on");document.body.classList.add("rsz");
+    const mv=ev=>{const r=sp.getBoundingClientRect();let w=null,t=null;if(dx){w=Math.max(260,Math.min(r.width*.7,r.right-ev.clientX-3));lsSet(K.w,String(Math.round(w)))}if(dy){t=Math.max(110,Math.min(r.height-110,ev.clientY-r.top-3));lsSet(K.h,String(Math.round(t)))}put(w,t)};
+    const up=()=>{h.classList.remove("on");document.body.classList.remove("rsz");h.removeEventListener("pointermove",mv);h.removeEventListener("pointerup",up);h.removeEventListener("pointercancel",up)};
+    h.addEventListener("pointermove",mv);h.addEventListener("pointerup",up);h.addEventListener("pointercancel",up)});
+    h.ondblclick=()=>clear(dx,dy);
+    h.onkeydown=e=>{const st=e.shiftKey?60:20,r=sp.getBoundingClientRect(),cw=Number(lsGet(K.w))||$("#detail").getBoundingClientRect().width,ch=Number(lsGet(K.h))||$("#lpane").getBoundingClientRect().height;let w=null,t=null;
+      if(dx&&(e.key==="ArrowLeft"||e.key==="ArrowRight")){w=Math.max(260,Math.min(r.width*.7,cw+(e.key==="ArrowLeft"?st:-st)));lsSet(K.w,String(Math.round(w)))}
+      if(dy&&(e.key==="ArrowUp"||e.key==="ArrowDown")){t=Math.max(110,Math.min(r.height-110,ch+(e.key==="ArrowUp"?-st:st)));lsSet(K.h,String(Math.round(t)))}
+      if(w!=null||t!=null){e.preventDefault();put(w,t)}}};
+  drag(sp.querySelector(".rzv"),true,false);drag(sp.querySelector(".rzh"),false,true);drag(sp.querySelector(".rzc"),true,true)}
+{const sp=$("#split"),T={l:"rundown",m:"script",d:"details"};for(const b of sp.querySelectorAll(".xp"))b.onclick=()=>{const p=b.dataset.p,on=sp.dataset.max!==p;sp.dataset.max=on?p:"";for(const o of sp.querySelectorAll(".xp")){o.classList.toggle("on",on&&o===b);o.title=(on&&o===b?"Restore the ":"Expand the ")+T[o.dataset.p];o.setAttribute("aria-label",o.title)}}}      // v10.21.0: expand / restore a box
+{const d=new Date();d.setFullYear(d.getFullYear()+1);if(!$("#nv").value)$("#nv").value=d.toISOString().slice(0,10)}      // v10.20.1: Valid upto starts one year ahead; the server refuses a new user without it
+$("#nadd").onclick=async()=>{try{await post("/api/users",{email:$("#ne").value.trim(),full_name:$("#nn").value.trim()||null,password:$("#np").value,role:$("#nr").value,valid_upto:$("#nv").value||null});$("#ne").value=$("#nn").value=$("#np").value="";load()}catch(e){delToast("Could not add the user: "+e.message,true)}};
+$("#day").onchange=()=>{sel=null;page=1;setShow("");prevNitro=null;dismissedN=0;load()};
 $("#showf").onchange=()=>{setShow($("#showf").value);page=1;load()};
 $("#beep").checked=lsGet("autoid_beep")==="1";$("#beep").onchange=()=>lsSet("autoid_beep",$("#beep").checked?"1":"0");
-$("#exp").onclick=()=>{const qs=new URLSearchParams({filter});if($("#day").value)qs.set("day",$("#day").value.replaceAll("-",""));if(showf&&view!=="group")qs.set("show",showf);if(userf)qs.set("user",userf);if(editf)qs.set("editor",editf);if(qtext)qs.set("q",qtext);if(sortKey){qs.set("sort",sortKey);qs.set("dir",sortDir)}if(hideRm&&filter!=="removed")qs.set("hide_removed","1");const a=document.createElement("a");a.href="/api/clips.csv?"+qs;a.download="";document.body.append(a);a.click();a.remove()};
+$("#exp").onclick=()=>{const qs=new URLSearchParams({filter});if($("#day").value)qs.set("day",$("#day").value.replaceAll("-",""));if(showf&&view!=="group")qs.set("show",showf);if(userf)qs.set("user",userf);if(editf)qs.set("editor",editf);if(createdf)qs.set("created",createdf);if(qtext)qs.set("q",qtext);if(sortKey){qs.set("sort",sortKey);qs.set("dir",sortDir)}if(hideRm&&filter!=="removed")qs.set("hide_removed","1");const a=document.createElement("a");a.href="/api/clips.csv?"+qs;a.download="";document.body.append(a);a.click();a.remove()};
 $("#exp").title="Download every clip ID of this day that matches the search and the filter (all pages; in the by-bulletin view: all bulletins)";
 $("#prt").onclick=()=>window.print();$("#prt").title="Print what is on screen (choose 200 per page for the longest page)";
 $("#q").oninput=()=>{clearTimeout(qtimer);qtimer=setTimeout(()=>{qtext=$("#q").value.trim();page=1;load()},300)}; boot(); setInterval(()=>{if(me&&!paused)load()},5000);
@@ -592,6 +725,7 @@ let fqt;$("#fq").oninput=()=>{clearTimeout(fqt);fqt=setTimeout(()=>{feed.fq=$("#
 $("#fnote").checked=lsGet("autoid_fnote")==="1";$("#fnote").onchange=async()=>{lsSet("autoid_fnote",$("#fnote").checked?"1":"0");if($("#fnote").checked&&window.Notification&&Notification.permission==="default"){try{await Notification.requestPermission()}catch(e){}}};
 document.addEventListener("keydown",e=>{if(e.ctrlKey||e.metaKey||e.altKey)return;const t=e.target&&e.target.tagName;
   if(e.key==="Escape"){const o=document.querySelector("details.upick[open]");if(o){o.removeAttribute("open");e.stopPropagation();return}}      // Esc closes the open user list first, nothing else
+  {const sp=$("#split");if(e.key==="Escape"&&sp&&sp.dataset.max){sp.dataset.max="";for(const b of sp.querySelectorAll(".xp"))b.classList.remove("on");e.stopPropagation();return}}      // v10.21.0: Esc restores an expanded box
   if(e.key==="Escape"&&feed.open){if(feed.mode==="tab")setTab("rundown");else if(feed.mode==="max")feedMode("dock");else closeFeed();e.stopPropagation();return}
   if((e.key==="f"||e.key==="F")&&t!=="INPUT"&&t!=="TEXTAREA"&&t!=="SELECT"){toggleFeed()}},true);
 
@@ -610,7 +744,7 @@ function renderChips(){const f=$("#fsel"),defs=[["all","All Stories",counts.all]
   setText($("#lh"),"Rundown ("+counts.all+")");const sg=defs.join("|")+filter;if(sg===sigCh)return;sigCh=sg;
   f.replaceChildren(...defs.map(([k,t,n])=>{const o=el("option",null,t+" ("+n+")");o.value=k;return o}));f.value=filter}
 const SORTN={row:"row number",title:"story title",status:"status"};
-function renderSortHead(){for(const b of document.querySelectorAll(".sh0 .shb")){const on=b.dataset.k===sortKey;const as=on?(sortDir==="desc"?"descending":"ascending"):"none";if(b.getAttribute("aria-sort")!==as)b.setAttribute("aria-sort",as);const t=b.dataset.k==="row"?"#":b.dataset.k==="title"?"Story Title":"Status";setText(b,t+(on?(sortDir==="desc"?" ▼":" ▲"):""))}
+function renderSortHead(){for(const b of document.querySelectorAll(".sh0 .shb")){const on=b.dataset.k===sortKey;const as=on?(sortDir==="desc"?"descending":"ascending"):"none";if(b.getAttribute("aria-sort")!==as)b.setAttribute("aria-sort",as);const t=b.dataset.k==="row"?"#":b.dataset.k==="title"?"Story Title":b.dataset.k==="clips"?"Clips":"Status";setText(b,t+(on?(sortDir==="desc"?" ▼":" ▲"):""))}
   const r=$("#srt");if(sortKey){setText(r,"Sorted by "+SORTN[sortKey]+(sortDir==="desc"?" ▼":" ▲")+" · reset");showCls(r)}else toggleCls(r,"hide",true);
   const h=$("#hrm");if(h.checked!==hideRm)h.checked=hideRm;const hd=filter==="removed";if(h.disabled!==hd)h.disabled=hd}
 function setSort(k,d){sortKey=k;sortDir=d||"asc";lsSet("autoid_sort",k?k+":"+sortDir:"");page=1;renderSortHead();load()}
@@ -627,25 +761,28 @@ function upFilter(f){const q=f.querySelector(".ups").value.trim().toLowerCase(),
   const old=box.querySelector(".none");if(old)old.remove();if(q&&!n)box.append(el("div","none","No match"))}
 function upWire(f){const i=f.querySelector(".ups");if(i.dataset.w)return;i.dataset.w="1";i.oninput=()=>upFilter(f);
   i.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();const l=[...f.querySelectorAll(".upl label")].find(x=>x.style.display!=="none");if(l){const c=l.querySelector("input");c.checked=!c.checked;c.dispatchEvent(new Event("change"))}}}      // Enter ticks (or unticks) the first match
-  f.addEventListener("toggle",()=>{if(f.open){i.focus();i.select()}})}
+  f.addEventListener("toggle",()=>{if(f.open){if(f.closest(".sh0")){const r=f.querySelector("summary").getBoundingClientRect(),pp=f.querySelector(".upp");pp.style.top=(r.bottom+2)+"px";pp.style.left=Math.max(4,Math.min(r.left,innerWidth-pp.offsetWidth-8))+"px"}i.focus();i.select()}})}
 function userOpts(f,list,keep,all,onchange,fmt){upWire(f);const sg=JSON.stringify(list.map(x=>[x.name,x.created,x.assigned,x.n]))+"|"+keep;if(f.dataset.sg===sg)return;f.dataset.sg=sg;
   const sel=keep?keep.split(",").filter(Boolean):[],low=sel.map(x=>x.toLowerCase()),names=list.map(x=>x.name),box=f.querySelector(".upl"),pick=()=>onchange([...box.querySelectorAll("input:checked")].map(i=>i.value).join(","));
-  f.querySelector("summary").textContent=sel.length?(sel.length<=2?sel.join(", "):sel[0]+" +"+(sel.length-1)):all;f.querySelector("summary").title=sel.join(", ");
+  const shown=sel.map(x=>x==="__none__"?"Unassigned":x);f.querySelector("summary").textContent=sel.length?(shown.length<=2?shown.join(", "):shown[0]+" +"+(shown.length-1)):all;f.querySelector("summary").title=shown.join(", ");
   const clr=el("button","ux","Clear: "+all);clr.type="button";clr.onclick=()=>{f.querySelector(".ups").value="";onchange("")};box.replaceChildren(clr);
   const add=(name,txt)=>{const l=el("label"),c=el("input");c.type="checkbox";c.value=name;c.checked=low.includes(name.toLowerCase());c.onchange=pick;l.append(c,el("span",null,txt));box.append(l)};
   for(const x of list)add(x.name,fmt?fmt(x):x.name+" (created "+x.created+" · assigned "+x.assigned+")");
   for(const n of sel)if(!names.some(m=>m.toLowerCase()===n.toLowerCase()))add(n,n+" (none today)");upFilter(f)}      // v10.9.0: several users can be ticked; one chosen earlier stays in the list even when nobody has a story today, so the filter never silently changes
 document.addEventListener("click",e=>{for(const d of document.querySelectorAll("details.upick[open]"))if(!d.contains(e.target))d.removeAttribute("open")});
-function renderEditors(){userOpts($("#editf"),editors,editf,"All editors",v=>{setEditor(v);page=1;sigBul="";load()},x=>x.name+" ("+x.n+")")}
+function renderEditors(){userOpts($("#editf"),[{name:"__none__"},...editors],editf,"Editor",v=>{setEditor(v);page=1;sigBul="";load()},x=>x.name==="__none__"?"Unassigned (no editor)":x.name+" ("+x.n+")")}      // v10.20.0: header drop-down; "Unassigned" sends the token __none__
+function renderCreated(){userOpts($("#createdf"),users.filter(x=>x.created>0),createdf,"Created by",v=>{setCreated(v);page=1;sigBul="";load()},x=>x.name+" ("+x.created+")")}
 function renderUsers(){userOpts($("#userf"),users,userf,"All users",v=>{setUser(v);page=1;sigBul="";load()})}
 const byLine=c=>[c.editor?"Editor "+c.editor:"",c.created_by?"Created by "+c.created_by:"",c.assigned_to?"Assigned to "+c.assigned_to:""].filter(Boolean).join(" · ");
-function row(c){const r=el("div","sr"+(sel===c.id?" sel":"")+(c.deleted?" gone":""));r.tabIndex=0;const t=el("span","tt",c.slug||c.story_title||c.display_id);t.dir="auto";t.title=((c.story_title&&c.story_title!==c.slug)?"Story name: "+c.story_title:"")+(byLine(c)?"\n"+byLine(c):"");
+function clipN(c){return c.story_clips||(clips.filter(x=>x.story_id===c.story_id).length+(c.hand_clips||0))}      // clips of this story: the server count when it has one, else the rows of the same story in this list plus clips added by hand
+function row(c){const r=el("div","sr"+(sel===c.id?" sel":"")+(c.deleted?" gone":"")+((c.state==="NEEDS_DESK"||c.state==="QUARANTINED")&&!c.deleted?" desk":""));r.tabIndex=0;const t=el("span","tt",c.slug||c.story_title||c.display_id);t.dir="auto";t.title=((c.story_title&&c.story_title!==c.slug)?"Story name: "+c.story_title:"")+(byLine(c)?"\n"+byLine(c):"");
   r.append(el("span","n",c.position!=null?String(c.position).padStart(2,"0"):""),t,el("span","tag "+c.state,SL(c.state)));
+  {const ce=(cls,v)=>{const x=el("span",cls,v||"");x.title=v||"";return x};r.append(ce("c",String(clipN(c))),ce(null,c.editor),ce(null,c.created_by),ce(null,fmtHM(c.show_start)))}      // v10.19.4: spreadsheet columns: clips, editor, created by, bulletin time
   r.onclick=()=>openStory(c.id);r.onkeydown=e=>{if(e.key==="Enter"&&e.target===r)openStory(c.id)};return r}
 const rowNodes=new Map();      // story id -> {sig, node}: a row is rebuilt only when its own data (or its selected state) changed
 function renderList(){const l=$("#list"),want=[],seen=new Set();
   if(!clips.length){let n=rowNodes.get("empty");if(!n){n={sig:"",node:el("div","mut","No stories in this view.")};rowNodes.set("empty",n)}want.push(n.node)}
-  else{rowNodes.delete("empty");for(const c of clips){const sg=JSON.stringify(c)+"|"+(sel===c.id);let n=rowNodes.get(c.id);if(!n||n.sig!==sg){n={sig:sg,node:row(c)};rowNodes.set(c.id,n)}seen.add(c.id);want.push(n.node)}}
+  else{rowNodes.delete("empty");for(const c of clips){const sg=JSON.stringify(c)+"|"+(sel===c.id)+"|"+clipN(c);let n=rowNodes.get(c.id);if(!n||n.sig!==sg){n={sig:sg,node:row(c)};rowNodes.set(c.id,n)}seen.add(c.id);want.push(n.node)}}
   for(const k of [...rowNodes.keys()])if(k!=="empty"&&!seen.has(k))rowNodes.delete(k);
   let i=0;for(const n of want){if(l.childNodes[i]!==n)l.insertBefore(n,l.childNodes[i]||null);i++}
   while(l.childNodes.length>want.length)l.lastChild.remove()}
@@ -688,16 +825,18 @@ function idbox(k,v){const d=el("div","idb");d.append(el("small",null,k));const r
 function renderRight(c,h,box){box.replaceChildren();const hd=el("div","ph2");hd.append(el("h2",null,"Media & IDs"),el("span","tag "+c.state,SL(c.state)));box.append(hd);
   const multi=(h.story_clips||[]).length>1;if(multi)box.append(gallery(c,h));      // the gallery has a Play preview on every clip, so the single preview box below is left out
   const mid=c.name_id||c.display_id,m=el("div","idb");m.append(el("small",null,"Media ID (Clip ID)"));const r=el("div","idv");r.append(el("b",null,mid));const cb=el("button","ok","Copy ID");cb.onclick=()=>copy(mid,cb);r.append(cb);m.append(r);box.append(m);
-  const two=el("div","two");two.append(idbox("Blaze Story ID",c.blaze_story_id),idbox("Slug ID",c.slug_id));box.append(two,acts(c,true));if(!multi)box.append(previewBox(c,h));
-  const sd=el("div","sec");sd.append(el("h3",null,"Story Details"));
-  for(const [k,v] of [["Show",c.rundown],["Show ID",c.blaze_rundown_id],["Editor",c.editor],["Created by",c.created_by],["Assigned to",c.assigned_to],["Bulletin",fmtHM(c.show_start)],["Row / Position",c.position],["Slug",c.slug],["Story name",c.story_title],["Folder",c.folder],["Version","V"+(c.version||1)],["Internal ID",c.display_id],["Status",NICE[c.state]||c.state],["Updated",c.script_at?fdt(c.script_at):""]])if(v!=null&&v!=="")sd.append(kvr(k,String(v),true));box.append(sd);
+  const two=el("div","two");two.append(idbox("Blaze Story ID",c.blaze_story_id),idbox("Slug ID",c.slug_id));box.append(acts(c,true));if(!multi)box.append(previewBox(c,h));
+  const more=el("details","sec more");more.open=moreOpen;more.append(el("summary",null,"More: IDs, story details and Blaze / MOS"));more.ontoggle=()=>{moreOpen=more.open};const sd=el("div","sec");sd.append(el("h3",null,"Story Details"));
+  for(const [k,v] of [["Show",c.rundown],["Show ID",c.blaze_rundown_id],["Editor",c.editor],["Created by",c.created_by],["Assigned to",c.assigned_to],["Bulletin",fmtHM(c.show_start)],["Row / Position",c.position],["Slug",c.slug],["Story name",c.story_title],["Folder",c.folder],["Version","V"+(c.version||1)],["Internal ID",c.display_id],["Status",NICE[c.state]||c.state],["Updated",c.script_at?fdt(c.script_at):""]])if(v!=null&&v!=="")sd.append(kvr(k,String(v),true));more.append(two,sd);
   const bz=el("div","sec");bz.append(el("h3",null,"Blaze / MOS"));const att=c.state==="ATTACHED";
   for(const [k,v] of [[att?"MOS object ID":"MOS object ID (found, not attached)",c.mos_object_id],["Item ID",c.item_id],["Blaze clip ID",c.blaze_clip_id],["Clip duration",c.attach_dur!=null?fmtDur(c.attach_dur):""],["Media file",h.file&&h.file.name],["File location",h.file&&h.file.where],["File length",h.file&&h.file.duration_s?Math.round(h.file.duration_s)+" s":""]])if(v!=null&&v!=="")bz.append(kvr(k,String(v),true));
-  if(bz.childNodes.length<2)bz.append(el("div","hint","Nothing in Blaze yet for this clip."));box.append(bz);
+  if(bz.childNodes.length<2)bz.append(el("div","hint","Nothing in Blaze yet for this clip."));more.append(bz);box.append(more);
   const k=att?3:(ready(c)||c.state==="ATTACH_SUBMITTED")?2:1,wf=el("div","wf");wf.append(el("b",null,"Workflow"));["Copy Media ID","Paste in Blaze","Attach & Update Status"].forEach((t,i)=>wf.append(el("span",att||i+1<k?"on":i+1===k?"cur":"",(i+1)+" "+t)));box.append(wf);
   const nx=hintFor(c);if(nx){const n=el("div","next");n.append(el("b",null,"Editor's next action: "),document.createTextNode(nx));box.append(n)}if(c.error)box.append(el("div","err",c.error));
   const dt=el("details","sec");dt.append(el("summary",null,"Story / media history"));const ul=el("ul","tl");
   for(const s of h.steps){const li=el("li",s.problem?"problem":s.done?"done":"");li.append(el("i"),el("b",null,s.label),el("span",null,s.detail+(s.time&&s.done?" · "+fmtT(s.time):"")));ul.append(li)}dt.append(ul);box.append(dt)}
+var moreOpen=false,dismissedN=0;      // v10.19.3: Dismiss stays dismissed until MORE clips need action than when it was clicked, so counts that move up and down do not bring the pill back
+
 var pv={id:null,node:null,msg:null};
 function stopPreview(){if(pv.node){try{pv.node.pause();pv.node.removeAttribute("src");pv.node.load()}catch(e){}}pv={id:null,node:null,msg:null}}      // dropping the src closes the stream, so the server stops ffmpeg at once
 function gallery(c,h){      // Story Media Gallery: every clip of this story as one card; the clip open below is marked, a click opens another one, each clip has its own Play preview

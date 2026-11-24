@@ -18,7 +18,17 @@ def key(): return (os.getenv("GROQ_API_KEY") or "").strip()
 def ai_available(): return bool(key()) and os.getenv("CLIP_SUMMARY", "1") != "0"
 def frames_enabled(): return os.getenv("CLIP_FRAMES", "1") != "0"
 def model(): return (os.getenv("GROQ_VISION_MODEL") or DEFAULT_MODEL).strip()
+_learned = [None]      # v10.18.3: the picture limit Groq reported for this model ("supports up to 3 images"), remembered until restart
+def max_images():
+    """Most pictures one Groq request may carry: GROQ_MAX_IMAGES (default 5), lowered to whatever Groq itself reported for the model."""
+    n = max(1, int(float(os.getenv("GROQ_MAX_IMAGES", "5") or 5)))
+    return min(n, _learned[0]) if _learned[0] else n
 def n_frames(): return min(5, max(1, int(float(os.getenv("CLIP_FRAMES_COUNT", "4") or 4))))
+def spread(items, n):
+    """n items taken evenly across the list, in order (all of them when there are no more than n)."""
+    if len(items) <= n: return list(items)
+    if n == 1: return [items[len(items) // 2]]
+    return [items[round(i * (len(items) - 1) / (n - 1))] for i in range(n)]
 
 
 def times(duration, n):
@@ -104,6 +114,8 @@ def post_groq(body, timeout=40, opener=None):
         if code == 404 or code == 400:      # v10.18.2: say Groq's OWN reason (it may be the model, or the request itself); it never contains the key
             try: why = str(((json.loads(e.read().decode("utf-8", "replace")) or {}).get("error") or {}).get("message") or "")[:300].replace(key(), "***") if key() else ""
             except Exception: why = ""
+            m = re.search(r"up to (\d+) images?", why or "", re.I)
+            if m: _learned[0] = max(1, int(m.group(1)))
             raise _fatal(HttpError(502, "Groq refused the request (HTTP %s) for the model %s%s. Set GROQ_VISION_MODEL to a model your key can use: run the list command in docs/CHANGES_v10180.md, or see console.groq.com/docs/vision" % (code, model(), (": " + why) if why else "")))
         if code == 429: raise HttpError(429, "Groq says: too many requests right now. Try again in a minute")
         raise HttpError(502, "Groq answered with an error (%s). Try again" % code)
@@ -114,8 +126,14 @@ def ask_groq(jpegs, timeout=40, opener=None):
     """Send the pictures to Groq and return {summary, tags}. opener: a stand-in for urllib's urlopen in tests."""
     if not ai_available(): raise HttpError(503, "The AI summary is not set up: GROQ_API_KEY is empty on the Storigen machine")
     if not _rate_ok(): raise HttpError(429, "The hourly limit for AI summaries is reached (GROQ_MAX_PER_HOUR). Try again later")
-    content = [{"type": "text", "text": PROMPT % len(jpegs)}] + [{"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(j).decode()}} for j in jpegs]
-    data = post_groq({"model": model(), "messages": [{"role": "user", "content": content}], "temperature": 0.2, "max_tokens": 220}, timeout, opener)
+    def send(pics):
+        content = [{"type": "text", "text": PROMPT % len(pics)}] + [{"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(j).decode()}} for j in pics]
+        return post_groq({"model": model(), "messages": [{"role": "user", "content": content}], "temperature": 0.2, "max_tokens": 220}, timeout, opener)
+    pics = spread(jpegs, max_images())       # v10.18.3: never more pictures than the model accepts (some models allow only 3)
+    try: data = send(pics)
+    except HttpError:
+        if len(spread(jpegs, max_images())) < len(pics): data = send(spread(jpegs, max_images()))   # Groq just told us a lower limit: try once more with that many
+        else: raise
     try: text = data["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError): raise HttpError(502, "Groq sent an answer Storigen could not read")
     out = parse_answer(text)

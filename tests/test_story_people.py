@@ -106,4 +106,4 @@ def test_the_page_uses_a_tick_list_for_users():
 
 def test_the_user_list_has_a_type_to_search_box():
     t = (pathlib.Path(__file__).resolve().parents[1] / "autoid_lite" / "web" / "index.html").read_text(encoding="utf-8")
-    assert t.count('class="ups"') == 4 and 'id="editf" class="upick"' in t and "function upFilter" in t and "No match" in t and 'e.key==="Enter"' in t and 'details.upick[open]' in t
+    assert t.count('class="ups"') == 5 and 'id="editf" class="upick"' in t and "function upFilter" in t and "No match" in t and 'e.key==="Enter"' in t and 'details.upick[open]' in t

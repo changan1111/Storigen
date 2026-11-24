@@ -92,8 +92,9 @@ def check(path, opener=None, now=time.time):
     finally: sem.release()
     if not any(j for _, j in got): raise HttpError(422, "No picture could be taken from this file (it may still be copying)")
     frames, err, stop, t0 = [], None, False, now()
-    for s in range(0, len(got), BATCH):
-        part = got[s:s + BATCH]; send = [(t, j) for t, j in part if j]
+    step = max(1, min(BATCH, clipsummary.max_images()))      # v10.18.3: a model may accept fewer than 5 pictures per request
+    for s in range(0, len(got), step):
+        part = got[s:s + step]; send = [(t, j) for t, j in part if j]
         res = [None] * len(part); why = "the picture could not be taken from the file"
         if send and not stop and now() - t0 < max_seconds():
             if not clipsummary._rate_ok(): err = err or "The hourly limit for AI calls is reached (GROQ_MAX_PER_HOUR): the rest was not checked"; stop = True
