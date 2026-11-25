@@ -108,7 +108,7 @@
     u = String(u); if (u.indexOf("/api/") !== 0) return realFetch(u, o);
     const [path, qs] = u.split("?"), q = new URLSearchParams(qs || ""), post = o && o.method === "POST"; let m;
     if (path === "/api/me") return json({ email: "demo@storigen.local", name: "Demo", role: "admin", perms: ["view", "version", "attach", "events"], valid_upto: null, days_left: null });
-    if (path === "/api/config") return json({ story_url: "sample", version: "11.0.0 sample", link_mode: "story_id", watcher_enabled: true, manual_enabled: false, quick_attach: true, support: true, script_labels: ["Online script", "Anchor script"], version_suffix: true });
+    if (path === "/api/config") return json({ story_url: "sample", version: "11.1 sample", link_mode: "story_id", watcher_enabled: true, manual_enabled: false, quick_attach: true, support: true, script_labels: ["Online script", "Anchor script"], version_suffix: true });
     if (path === "/api/status") return json({ problems: [] });
     if (path === "/api/rundowns") return json(SHOWS.map(s => s.name));
     if (path === "/api/feed") return json(feedQuery(q));

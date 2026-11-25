@@ -22,10 +22,11 @@ from .api_bot import BotMixin  # noqa: F401  (v10.11.0 editor chatbot, read-only
 from .api_insights import InsightsMixin  # noqa: F401  (v10.12.0 name coach, quality check, clip frames + AI summary, analytics; all read-only)
 from .api_features import FeaturesMixin  # noqa: F401  (v10.15.0 Missing-clip board + Bulletin smoke test, switched on / off from the page)
 from .api_blazeclips import BlazeClipsMixin  # noqa: F401  (v10.17.0 the full clip list of a story as Blaze holds it)
+from .api_fullscan import FullScanMixin  # noqa: F401  (v11.1.0 Add media > Full scan)
 from .api_support import SupportMixin  # noqa: F401  (v10.10.0 Quick Support)  (re-export: other code and the tests use server.<name>)
 from .common import APP_VERSION, EMAIL_RE, HOLD, HttpError, MAX_BODY, Req, STATES, norm, opt, removed_message, settings_from_env  # noqa: F401  (re-export: other code and the tests use server.<name>)
 
-class App(ServiceMixin, AuthMixin, DashboardMixin, RetentionMixin, SupportMixin, BotMixin, InsightsMixin, FeaturesMixin, BlazeClipsMixin):
+class App(ServiceMixin, AuthMixin, DashboardMixin, RetentionMixin, FullScanMixin, SupportMixin, BotMixin, InsightsMixin, FeaturesMixin, BlazeClipsMixin):
     def __init__(self, cfg, db_path, web_dir=None):
         self.cfg = cfg; self.db = DB(db_path); self.web_dir = Path(web_dir or Path(__file__).parent / "web")
         if len(cfg["api_key"]) < 16 or len(cfg["secret"]) < 32:
@@ -43,7 +44,7 @@ class App(ServiceMixin, AuthMixin, DashboardMixin, RetentionMixin, SupportMixin,
             ("POST", r"/api/clips/(\d+)/version", self.a_version, "version"), ("GET", r"/api/clips/(\d+)/scope", self.a_scope, "view"), ("POST", r"/api/clips/(\d+)/delete_version", self.a_delete_version, "version"), ("POST", r"/api/clips/(\d+)/attached", self.a_attached, "attach"), ("POST", r"/api/clips/(\d+)/quickattach", self.a_quickattach, "attach"),
             ("GET", r"/api/clips/(\d+)/history", self.a_history, "view"), ("GET", r"/api/clips/(\d+)/preview", self.a_preview, "view"), ("GET", "/api/blaze-clip/preview", self.a_hand_preview, "view"), ("GET", "/api/events", self.a_events, "events"),
             ("GET", "/api/support/bulletins", self.a_sup_bulletins, "view"), ("GET", "/api/support/stories", self.a_sup_stories, "view"), ("GET", "/api/support/media", self.a_sup_media, "view"), ("GET", "/api/support/jobs", self.a_sup_jobs, "view"),
-            ("GET", r"/api/support/jobs/(\d+)", self.a_sup_job, "view"), ("POST", "/api/support/list", self.a_sup_list, "view"), ("POST", "/api/support/add", self.a_sup_add, "attach"), ("POST", "/api/support/remove", self.a_sup_remove, "attach"), ("POST", r"/api/support/jobs/(\d+)/cancel", self.a_sup_cancel, "attach"),
+            ("GET", r"/api/support/jobs/(\d+)", self.a_sup_job, "view"), ("POST", "/api/support/list", self.a_sup_list, "view"), ("POST", "/api/support/find", self.a_sup_find, "view"), ("POST", "/api/support/add", self.a_sup_add, "attach"), ("POST", "/api/support/remove", self.a_sup_remove, "attach"), ("POST", r"/api/support/jobs/(\d+)/cancel", self.a_sup_cancel, "attach"),
             ("GET", "/api/bot/bulletins", self.a_bot_bulletins, "view"), ("GET", "/api/bot/stories", self.a_bot_stories, "view"), ("GET", "/api/bot/story", self.a_bot_story, "view"),
             ("GET", "/api/bot/checkname", self.a_bot_checkname, "view"), ("GET", r"/api/clips/(\d+)/quality", self.a_quality, "view"), ("GET", r"/api/clips/(\d+)/frames", self.a_frames, "view"), ("GET", r"/api/clips/(\d+)/standards", self.a_standards, "view"), ("GET", "/api/analytics", self.a_analytics, "view"), ("GET", r"/api/scan/assets/([^/]+)", self.a_scan_asset, "view"),
             ("GET", "/api/features", self.a_features, "view"), ("POST", "/api/features", self.a_features_set, "users"), ("GET", "/api/missing", self.a_missing, "view"), ("GET", "/api/smoke", self.a_smoke, "view"),

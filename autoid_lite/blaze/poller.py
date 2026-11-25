@@ -15,11 +15,12 @@ from .loop import RunMixin
 from .media import MediaMixin
 from .reports import ReportMixin
 from .scripts import ScriptMixin
+from .fullscan import FullScanMixin
 from .support import SupportMixin
 from .util import say
 
 
-class Poller(ClipReportMixin, MediaMixin, AttachMixin, ReportMixin, ScriptMixin, SupportMixin, RunMixin):
+class Poller(ClipReportMixin, MediaMixin, AttachMixin, ReportMixin, ScriptMixin, FullScanMixin, SupportMixin, RunMixin):
     def __init__(self, c, blaze=None, autoid=None):
         self.c, self.b, self.a = c, blaze or Blaze(c), autoid or AutoId(c); self.led = bl.Ledger(c.ledger)
         self.names, self.pos, self.last, self.pinged, self.stories, self.rows, self.last_rec, self.skipped = {}, {}, {}, 0.0, {}, [], 0.0, {}

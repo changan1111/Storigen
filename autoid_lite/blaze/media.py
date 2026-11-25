@@ -39,10 +39,14 @@ class MediaMixin:
         if not self.mlist or now - self.mlist[0] > max(120, 4 * self.c.poll): return []     # nothing usable yet (Blaze is slow): these clips are looked at again next round
         _, idx, complete = self.mlist; rest = []
         for r in rows:
-            st, m = find_indexed(idx, rkey(r), self.c.settle)
+            st, m = find_indexed(idx, rkey(r), self.settle_for(r))
             if st == "missing" and not complete: rest.append(r); continue            # may be beyond the part of the list that was read: ask Blaze by title
             self.mcache[r["display_id"]] = (now, st, m)
         return rest
+    def settle_for(self, r):
+        """v11.1: a clip the watcher has seen in Nitro ON AIR is finished (a file there does not grow), so Blaze's settle wait (BLAZE_MEDIA_SETTLE_SECS) is skipped for it. Blaze still has to have converted it.
+        BLAZE_SETTLE_ON_NITRO=0 brings the old wait back for every clip."""
+        return 0 if r.get("state") == "ON_NITRO" and getattr(self.c, "settle_on_nitro_skip", True) else self.c.settle
     def say_groups(self):
         """v10.9.3: one line when what the group lists give changes (and a plain warning when Blaze does not know the group filter or a group cannot be read)."""
         info = getattr(self.b, "group_info", {}) or {}
@@ -71,7 +75,7 @@ class MediaMixin:
             if kind == "err": continue                                               # searched again next pass
             medias, total = val
             if total and total > len(medias): say("WARNING: Blaze has %s files matching %s but returned only %d: raise the page size" % (total, key[0], len(medias)))
-            st, m = find_media(medias, key, self.c.settle); self.mcache[r["display_id"]] = (now, st, m)
+            st, m = find_media(medias, key, self.settle_for(r)); self.mcache[r["display_id"]] = (now, st, m)
     def prefetch_info(self, stories):
         """The story details behind a plan line (item, linked shows), read in parallel, a bounded batch, and kept for BLAZE_INFO_SECS."""
         now = time.time(); due = [x for x in dict.fromkeys(stories) if x not in self.info_cache or now - self.info_cache[x][0] >= self.c.info_secs][: self.c.recon_batch]

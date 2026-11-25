@@ -2,6 +2,8 @@
 
 One line per release, newest first. Each link has the full notes. Internal names such as autoid.py and autoid.env were kept on purpose through the Storigen rename.
 
+* [v11.1 - Add media: a "Full scan" check box (off by default) searches all of Blaze's media by name and attaches the file you pick; nothing changes when it is off](CHANGES_v1110.md)
+* [v11.0.1 - Chat Update flow also asks byte or tag and gives the name with the label, e.g. ..._V01_U01 (byte)](CHANGES_v1100.md)
 * [v11.0.0 - A filter that is on turns its header green (Editor, Created by, User, Search, Status, Hide removed) and the top bar says which; a (byte) / (minibyte) / (tag) label after _V01 / _V02 / _U01 is ignored when matching and attaching; the chat asks byte or tag after Append](CHANGES_v1100.md)
 * [v10.18.2 - Groq 400/404 shows Groq's own reason; v10.18.1 - Groq connection works on a Mac whose Python has no certificates (uses the system bundle); v10.18.0 - A clip added with the + (Add media) button shows on the dashboard at once (story card and gallery, whatever VERSION_SUFFIX is) and has a Play preview: its file is found on Nitro by name every time, nothing stored](CHANGES_v10180.md)
 * [v10.17.0 - One Add media per story (Delete stays on each clip); clips added by hand in Blaze now show on the dashboard; the chat reads the real clip list from Blaze before it numbers _U / _V; the violence check button is always visible and says why it is off; Groq connection problems say what to open](CHANGES_v10170.md)

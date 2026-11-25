@@ -29,7 +29,7 @@ class Cfg:
         self.concurrency = min(16, max(1, int(g("BLAZE_CONCURRENCY", "6"))))        # simultaneous requests to Blaze (the Blaze page itself sent 8 slug requests within 2 seconds)
         self.retry_max = max(5, int(g("BLAZE_RETRY_MAX_SECS", "60")))              # a failing show is retried with a growing delay (poll interval, doubled each failure) up to this many seconds
         self.ignore_shows = [x.strip().upper() for x in g("BLAZE_IGNORE_SHOW_TITLES").split(",") if x.strip()]
-        self.poll = max(5, int(g("BLAZE_POLL_SECS", "15"))); self.days = max(1, int(g("BLAZE_MEDIA_DAYS", "2")))
+        self.poll = max(5, int(g("BLAZE_POLL_SECS", "15"))); self.days = max(1, int(g("BLAZE_MEDIA_DAYS", "2"))); self.fullscan_days = max(self.days, int(g("BLAZE_FULLSCAN_DAYS", "365") or "365"))      # v11.1.0 Full scan: how many days back the Add media "Full scan" search looks
         self.version_mode = g("BLAZE_VERSION_MODE", "desk").lower()                             # v9.6: a clip of version 2 or higher ("+ Version"): desk = never attached by the tool, the desk does it; auto = attached, then the previous version's clip is removed
         if self.version_mode not in ("desk", "auto"): raise SystemExit("BLAZE_VERSION_MODE must be desk or auto (now %r)" % self.version_mode)
         self.lookahead_h = max(0, float(g("BLAZE_SHOW_LOOKAHEAD_HOURS", "5")))                 # v9.5.1: shows of the next calendar date that start within this many hours (and before the broadcast day ends) are followed already, so a 00:00 show is not missed
@@ -52,7 +52,7 @@ class Cfg:
         self.media_page = max(10, int(g("BLAZE_MEDIA_PAGE", "200"))); self.media_max_pages = max(1, int(g("BLAZE_MEDIA_MAX_PAGES", "5")))                 # list mode: files per request, and at most this many requests per round (200 x 5 = the newest 1000 files)
         self.media_groups = [x.strip().upper() for x in g("BLAZE_MEDIA_GROUPS", "NEWS,PROGRAMS,PROMOS,ADS").split(",") if x.strip() and x.strip().upper() not in ("NONE", "OFF", "0")]   # v10.9.3: the media list is also read once per group (NONE = only the plain list, as before 10.9.3)
         self.media_group_key = g("BLAZE_MEDIA_GROUP_KEY", "objGroup").strip() or "objGroup"                                              # the media-list filter field that names the group (python3 tools/blaze_poll.py groups finds the one your Blaze accepts)
-        self.settle = int(g("BLAZE_MEDIA_SETTLE_SECS", "60")); self.attach = g("BLAZE_ATTACH", "dry").lower()
+        self.settle = int(g("BLAZE_MEDIA_SETTLE_SECS", "60")); self.settle_on_nitro_skip = g("BLAZE_SETTLE_ON_NITRO", "1") != "0"; self.attach = g("BLAZE_ATTACH", "dry").lower()
         self.when = g("BLAZE_ATTACH_WHEN", "media").lower()          # media = Blaze's media list is enough; watcher = also wait for ON_NITRO
         self.allow_empty = g("BLAZE_ALLOW_EMPTY") == "1"
         self.ignore = [x.strip().upper() for x in g("BLAZE_IGNORE_TITLES").split(",") if x.strip()]   # template rows that never get an ID
