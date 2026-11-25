@@ -13,7 +13,7 @@ POLL = (ROOT / "autoid_lite" / "blaze" / "fullscan.py").read_text(encoding="utf-
 
 def test_checkbox_is_off_by_default_and_the_scan_is_read_only():
     assert 'fs.type="checkbox";fs.id="addfull"' in PAGE and "fs.checked=true" not in PAGE and "fs.defaultChecked" not in PAGE
-    assert "/api/support/find" in PAGE and "Full scan" in PAGE
+    assert "/api/support/find" in PAGE and "Full scan" in PAGE and PAGE.count("type=\"checkbox\";fs.id=") == 2 and "fs.id=\"supfull\"" in PAGE
     assert "def a_sup_find" in API and "len(text) < 3" in API and "def sup_list" in POLL and "return super().sup_list(j)" in POLL
     assert ".attach(" not in POLL and "post(" not in API.replace("sup_post", ""), "the scan itself never writes to Blaze"
 

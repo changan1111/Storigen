@@ -3,6 +3,7 @@
 ## Add media: "Full scan" check box
 In the Add media dialog a new check box, **Full scan: search all media in Blaze**, is OFF by default, so the normal list, typed-name queue and automatic attach work exactly as before.
 With it ON, type at least 3 characters of the clip name and press **Scan Blaze**: every file in Blaze whose name contains that text is listed (up to 100; type more to narrow), and the editor picks one. Attaching it is the normal Add media request (Yes first, same poller rules and read-back, only that exact file id).
+The same check box is in the Support menu's Add media screen (bulletin, story, clip).
 The scan only searches; it sends nothing to Blaze that changes anything. It looks back `BLAZE_FULLSCAN_DAYS` days (default 365).
 New files: `autoid_lite/api_fullscan.py`, `autoid_lite/blaze/fullscan.py`. `api_support.py` and `blaze/support.py` are unchanged.
 

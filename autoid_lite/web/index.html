@@ -942,14 +942,28 @@ function supStep3(body){
 }
 async function supAddUi(body,story,b){
   body.append(el("div","st","3 · Clip"));let media=[];try{media=(await api("/api/support/media")).media}catch(e){if(e.message!=="login")alert(e.message);return}
-  SUP.media=media;const pk=supPicker("Search the clip…",it=>{nm.value="";upd()});pk.set(media.map(m=>({id:m.media_id,label:m.name,sub:"MOS "+m.media_id+(m.found_at?" · found "+supHM(m.found_at):"")})));body.append(pk.el);
+  SUP.media=media;const pk=supPicker("Search the clip…",it=>{if(!fs.checked)nm.value="";upd()}),normal=media.map(m=>({id:m.media_id,label:m.name,sub:"MOS "+m.media_id+(m.found_at?" · found "+supHM(m.found_at):"")}));pk.set(normal);body.append(pk.el);
+  /* v11.1 Full scan: OFF by default. ON: the typed text is searched in ALL of Blaze's media and the files found are listed to pick from. */
+  const fsl=el("label","mut"),fs=document.createElement("input");fs.type="checkbox";fs.id="supfull";fsl.append(fs," Full scan: search all media in Blaze (edge case: use only when the clip is not in the list above)");fsl.style.display="block";fsl.style.margin=".5rem 0";body.append(fsl);let scanIds=new Set(),scanning=false;
   body.append(el("div","st","Not in the list? Type the correct name and queue it"));const nm=el("input");nm.type="text";nm.placeholder="DDMMYY_STORY_NAME, for example 221126_FIRE_AT_PORT";nm.setAttribute("aria-label","Correct clip name");nm.autocomplete="off";body.append(nm);
   const go=el("button","ok","Attach clip");go.type="button";const row=el("div","acts");row.append(go);body.append(row);
-  const upd=()=>{go.textContent=nm.value.trim()?"Queue it":"Attach clip"};nm.oninput=()=>{if(nm.value.trim())pk.reset();upd()};
-  go.onclick=async()=>{if(SUP.busy)return;const name=nm.value.trim(),pick=pk.value;if(!name&&!pick){alert("Pick a clip from the list, or type the correct name.");return}
-    const lines=["Story: "+story.label.replace(/^\d+\s+/,""),"Bulletin: "+(b.name||b.id),"Clip: "+(name||pick.label)];if(b.aired)lines.push("!This bulletin has already aired. A change made now may not reach the air.");
-    const ok=name?await supAsk("Queue this clip?",[...lines,"It is attached as soon as the file appears in Blaze's media list (up to "+SUP.wait+" minutes). Everyone is notified when it is attached."],"Yes, queue it"):await supAsk("Attach this clip to the story?",[...lines,"It is attached in Blaze now."],"Yes, attach");
-    if(!ok)return;SUP.busy=true;go.disabled=true;try{await post("/api/support/add",{rundown:SUP.bulId,story:story.id,media_id:name?undefined:pick.id,name:name||undefined,confirm:true});nm.value="";pk.reset();upd();supPoll()}catch(e){if(e.message!=="login")alert(e.message)}finally{SUP.busy=false;go.disabled=false}}}
+  const upd=()=>{go.textContent=fs.checked?(pk.value?"Attach clip":"Scan Blaze"):nm.value.trim()?"Queue it":"Attach clip"};nm.oninput=()=>{if(!fs.checked&&nm.value.trim())pk.reset();upd()};
+  const er=el("div","supwarn hide");body.append(er);fs.onchange=()=>{scanIds=new Set();pk.set(fs.checked?[]:normal);nm.placeholder=fs.checked?"Type part of the clip name, then press Scan Blaze":"DDMMYY_STORY_NAME, for example 221126_FIRE_AT_PORT";er.className="supwarn hide";upd()};
+  go.onclick=async()=>{if(SUP.busy)return;const name=nm.value.trim(),pick=pk.value;er.className="supwarn hide";
+    if(fs.checked&&!pick){ if(scanning)return; if(name.length<3){er.textContent="Type at least 3 characters of the clip name, then press Scan Blaze.";er.className="supwarn";return}
+      scanning=true;go.disabled=true;go.textContent="Scanning Blaze…";
+      try{const id=await supFind(SUP.bulId,story.id,name);let j=null;
+        for(let i=0;i<60;i++){await new Promise(r=>setTimeout(r,i<3?500:1000));if(!go.isConnected||SUP.story!==story)return;try{j=await api("/api/support/jobs/"+id)}catch(e){if(e.message==="login")return;continue}if(j.state==="DONE"||j.state==="FAILED")break}
+        if(!j||j.state!=="DONE")throw new Error("Could not scan Blaze: "+((j&&j.msg)||"no answer in time")+". Try again.");
+        const r=j.result||{media:[]};scanIds=new Set(r.media.map(x=>String(x.media_id)));pk.set(r.media.map(x=>({id:x.media_id,label:x.name,sub:"MOS "+x.media_id+(x.found_at?" · "+new Date(x.found_at).toLocaleString():"")+(x.group?" · "+x.group:"")+(x.ready?"":" · still converting")})));
+        if(!r.media.length){er.textContent="No file in Blaze has \""+name+"\" in its name (looked back "+r.days+" days).";er.className="supwarn"}
+        else if(r.total>r.media.length){er.textContent="Showing "+r.media.length+" of "+r.total+" matches: type more of the name and scan again to narrow it.";er.className="supwarn"}}
+      catch(e){if(e.message!=="login"){er.textContent=e.message;er.className="supwarn"}}finally{scanning=false;go.disabled=false;upd()}return}
+    const picked=fs.checked&&pick;
+    if(!name&&!pick){alert("Pick a clip from the list, or type the correct name.");return}
+    const lines=["Story: "+story.label.replace(/^\d+\s+/,""),"Bulletin: "+(b.name||b.id),"Clip: "+(picked?pick.label:(name||pick.label))];if(b.aired)lines.push("!This bulletin has already aired. A change made now may not reach the air.");
+    const ok=(name&&!picked)?await supAsk("Queue this clip?",[...lines,"It is attached as soon as the file appears in Blaze's media list (up to "+SUP.wait+" minutes). Everyone is notified when it is attached."],"Yes, queue it"):await supAsk("Attach this clip to the story?",[...lines,"It is attached in Blaze now."],"Yes, attach");
+    if(!ok)return;SUP.busy=true;go.disabled=true;try{await post("/api/support/add",Object.assign({rundown:SUP.bulId,story:story.id,media_id:picked?pick.id:name?undefined:pick.id,name:picked?undefined:name||undefined,confirm:true},picked&&scanIds.has(String(pick.id))?{full_scan:true,media_title:pick.label}:{}));nm.value="";pk.reset();upd();supPoll()}catch(e){if(e.message!=="login")alert(e.message)}finally{SUP.busy=false;go.disabled=false}}}
 async function supDelUi(body,story,b){
   body.append(el("div","st","3 · Clips in the story (read from Blaze)"));const box=el("div","mut","Reading the story from Blaze…");body.append(box);let sel=null;
   let id;try{id=(await post("/api/support/list",{rundown:SUP.bulId,story:story.id})).id}catch(e){if(e.message!=="login")box.textContent=e.message;return}
