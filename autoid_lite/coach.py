@@ -14,7 +14,27 @@ LAB_PAREN = re.compile(r"(_[UVuv]\d+)[ _\-]*\(([^()]*)\)", re.I)                
 LAB_WORD = re.compile(r"(_[UVuv]\d+)[ _\-]+(mini[ _\-]?byte|byte|tag)$", re.I)
 
 
+BASE_LAB = re.compile(r"(?:[ _\-]*\(\s*(?:mini[ _\-]?byte|byte|tag|del)\s*\))+\s*$", re.I)      # v11.2.0: 111126_FIRE (byte) / (minibyte) / (tag) / (del) on the plain clip (same rule as ids.BASE_LABEL)
+BASE_WORD = re.compile(r"\(\s*(mini[ _\-]?byte|byte|tag|del)\s*\)", re.I)
+
+
 def _norm(s): return re.sub(r"[^A-Z0-9]+", "_", (s or "").upper()).strip("_")
+
+
+def _split(typed, suffix_on=True):
+    """-> (the name without extension and label, the label, where it sat: 'version' after a _Un / _Vn, 'base' at the end of the plain clip name, or '')."""
+    name = (typed or "").strip()
+    for e in EXTS:
+        if name.lower().endswith(e): name = name[:-len(e)]; break
+    label, where = "", ""
+    lm = LAB_PAREN.search(name) or LAB_WORD.search(name)
+    if lm: label, where = lm.group(2).strip(), "version"; name = LAB_WORD.sub(r"\1", LAB_PAREN.sub(r"\1", name)).strip()
+    bm = suffix_on and BASE_LAB.search(name)
+    if bm:
+        w = BASE_WORD.findall(bm.group(0))
+        if not label: label, where = w[-1].strip(), "base"
+        name = name[:bm.start()].strip()
+    return name, label, where
 
 
 def _result(ok, kind, messages, expected=None, fix=None, does=None):
@@ -22,19 +42,15 @@ def _result(ok, kind, messages, expected=None, fix=None, does=None):
 
 
 def check_name(plan, base, typed, suffix_on=True):
-    res = _check_name(plan, base, typed, suffix_on); res["label"] = (LAB_PAREN.search(typed or "") or LAB_WORD.search((typed or "").strip()) or [None, None, ""])[2] if res else ""; return res
+    res = _check_name(plan, base, typed, suffix_on); res["label"] = _split(typed, suffix_on)[1] if res else ""; return res
 
 
 def _check_name(plan, base, typed, suffix_on=True):
     """plan = api_bot.plan_names(...) of the story; base = the story's clip name (DDMMYY_SLUG); typed = what the editor typed or pasted."""
-    name = (typed or "").strip()
-    for e in EXTS:
-        if name.lower().endswith(e): name = name[:-len(e)]; break
+    name, label, where = _split(typed, suffix_on)
     if not name: return _result(False, "empty", ["Type or paste the file name first."])
-    notes, label = [], ""
-    lm = LAB_PAREN.search(name) or LAB_WORD.search(name)
-    if lm: label = lm.group(2).strip(); name = LAB_WORD.sub(r"\1", LAB_PAREN.sub(r"\1", name)).strip()
-    if label: notes.append("The label (%s) after the version is only for people: the system ignores it." % label)
+    notes = []
+    if label: notes.append("The label (%s) %s is only for people: the system ignores it." % (label, "at the end of the name" if where == "base" else "after the version"))
     if " " in name: notes.append("The name has spaces. Clip names use underscores (_) instead of spaces.")
     m = TAIL_RE.search(name)
     tail = m.group(1) if m else ""

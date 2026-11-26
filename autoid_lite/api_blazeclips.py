@@ -10,7 +10,7 @@ import json, re, time
 from .common import HttpError, opt
 from . import preview
 from .db import now_iso
-from .ids import enc_version, norm_name, strip_label
+from .ids import enc_version, label_of, norm_name, strip_label
 
 SUFFIX_RE = re.compile(r"((?:_[UV]\d+)+)$", re.I)                 # ..._V01, ..._U02, ..._V01_U02
 CAP = 200                                                          # clips kept per story
@@ -34,11 +34,11 @@ def merge_blaze(base, rows, bclips):
     A hand-added _V01 therefore makes the next append V02."""
     have = {norm_name(x.get("name_id") or "") for x in rows}; versions = {int(x["version"] or 1) for x in rows}; out, others = list(rows), []
     for c in bclips or []:
-        t = re.sub(r"\.[A-Za-z0-9]{2,4}$", "", (c.get("title") or "").strip()); key = norm_name(t)
+        raw = re.sub(r"\.[A-Za-z0-9]{2,4}$", "", (c.get("title") or "").strip()); t = strip_label(raw); key = norm_name(t)      # v11.2.0: 111126_FIRE_V01 (byte) is the clip 111126_FIRE_V01: the label is not a different name
         if not t or key in have: continue
         p = parse_clip_name(t)
-        if not p or norm_name(p[0]) != norm_name(base) or p[1] in versions: others.append({"name": t, "id": c.get("id")}); continue
-        versions.add(p[1]); have.add(key); out.append({"name_id": t, "display_id": t, "version": p[1], "state": "ATTACHED", "replaced_at": None, "blaze_story_id": None, "by_hand": True})
+        if not p or norm_name(p[0]) != norm_name(base) or p[1] in versions: others.append({"name": raw, "id": c.get("id")}); continue
+        versions.add(p[1]); have.add(key); out.append({"name_id": t, "display_id": t, "version": p[1], "state": "ATTACHED", "replaced_at": None, "blaze_story_id": None, "by_hand": True, "label": label_of(raw) if t != raw else ""})
     return out, others
 
 

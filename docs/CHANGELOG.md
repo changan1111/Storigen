@@ -2,6 +2,7 @@
 
 One line per release, newest first. Each link has the full notes. Internal names such as autoid.py and autoid.env were kept on purpose through the Storigen rename.
 
+* [v11.2 - Clips column says 0 until a clip is attached (it showed 1 for a clip still waiting); the plain clip takes a (byte) / (minibyte) / (tag) / (del) label like _V01 / _U01 do; the chat shows each clip's label so V01 and V02 can be told apart](CHANGES_v1120.md)
 * [v11.1 - Add media: a "Full scan" check box (off by default) searches all of Blaze's media by name and attaches the file you pick; nothing changes when it is off](CHANGES_v1110.md)
 * [v11.0.1 - Chat Update flow also asks byte or tag and gives the name with the label, e.g. ..._V01_U01 (byte)](CHANGES_v1100.md)
 * [v11.0.0 - A filter that is on turns its header green (Editor, Created by, User, Search, Status, Hide removed) and the top bar says which; a (byte) / (minibyte) / (tag) label after _V01 / _V02 / _U01 is ignored when matching and attaching; the chat asks byte or tag after Append](CHANGES_v1100.md)

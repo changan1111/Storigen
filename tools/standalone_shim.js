@@ -53,7 +53,7 @@
   C.forEach(c => { c.story_id = c.id; });
   { const b = C[0]; [[2001, "_V01", "ATTACHED"], [1001, "_U01", "ON_NITRO"]].forEach((x, k) => { const n = C.length + 1; C.push(derive(Object.assign({}, b, { id: n, display_id: b.display_id + x[1], name_id: b.name_id + x[1], version: x[0], state: x[2], story_id: b.story_id, t: ago(40 - k * 10) }))); }); }
   const siblings = c => C.filter(x => x.story_id === c.story_id);
-  C.forEach(c => { const l = siblings(c); c.story_clips = l.length; c.story_update = l.some(x => x.version > 1000 && x.version < 2000) ? "U01" : null; c.vlabel = c.version > 2000 ? "V" + pad(c.version % 1000) : c.version > 1000 ? "U" + pad(c.version % 1000) : null; });
+  C.forEach(c => { const l = siblings(c); c.story_clips = l.filter(x => x.state === "ATTACHED").length;      /* v11.2.0: like the server, only the clips really in the story count; a clip ID that is still waiting is not a clip yet */ c.story_update = l.some(x => x.version > 1000 && x.version < 2000) ? "U01" : null; c.vlabel = c.version > 2000 ? "V" + pad(c.version % 1000) : c.version > 1000 ? "U" + pad(c.version % 1000) : null; });
   const SJ = [];      // v10.11.0 sample Support requests (the Delete icon)
   const json = (d, s) => new Response(JSON.stringify(d), { status: s || 200, headers: { "Content-Type": "application/json" } });
   const hm = iso => { const d = new Date(iso); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
@@ -108,7 +108,7 @@
     u = String(u); if (u.indexOf("/api/") !== 0) return realFetch(u, o);
     const [path, qs] = u.split("?"), q = new URLSearchParams(qs || ""), post = o && o.method === "POST"; let m;
     if (path === "/api/me") return json({ email: "demo@storigen.local", name: "Demo", role: "admin", perms: ["view", "version", "attach", "events"], valid_upto: null, days_left: null });
-    if (path === "/api/config") return json({ story_url: "sample", version: "11.1 sample", link_mode: "story_id", watcher_enabled: true, manual_enabled: false, quick_attach: true, support: true, script_labels: ["Online script", "Anchor script"], version_suffix: true });
+    if (path === "/api/config") return json({ story_url: "sample", version: "11.2 sample", link_mode: "story_id", watcher_enabled: true, manual_enabled: false, quick_attach: true, support: true, script_labels: ["Online script", "Anchor script"], version_suffix: true });
     if (path === "/api/status") return json({ problems: [] });
     if (path === "/api/rundowns") return json(SHOWS.map(s => s.name));
     if (path === "/api/feed") return json(feedQuery(q));

@@ -12,7 +12,7 @@ PAGE = (ROOT / "autoid_lite" / "web" / "index.html").read_text(encoding="utf-8")
 
 def test_the_page_has_the_button_next_to_delete_and_reuses_the_support_request():
     for t in ("function addWhy(", "function addBtn(", "async function addMedia(", "➕ Add media", "/api/support/media", "/api/support/add", "supPicker(\"Search the clip…\"", "Yes, attach", "Yes, queue it", "Type the correct name and queue it"): assert t in PAGE, t
-    assert "pl.append(delBtn(x,c),addBtn(c))" not in PAGE and 'ha.append(el("span","gn",L.length' in PAGE and "addBtn(c)" in PAGE[PAGE.index("function gallery("):PAGE.index("function startPreview(")], "v10.17.0: ONE Add media per story, in the gallery header; each clip card has only Delete"
+    assert "pl.append(delBtn(x,c),addBtn(c))" not in PAGE and 'ha.append(el("span","gn",att+" clip"' in PAGE and "addBtn(c)" in PAGE[PAGE.index("function gallery("):PAGE.index("function startPreview(")], "v10.17.0: ONE Add media per story, in the gallery header; each clip card has only Delete"
     assert 'const dl=el("span","delrow");dl.append(delBtn(c,c),addBtn(c));' in PAGE, "beside Delete in the single preview box"
     assert 'if(c.state!=="ATTACHED"&&cfg.support!==false){const ab=addBtn(c)' in PAGE, "and in the story's buttons while there is no attached clip (nothing to delete there)"
     seg = PAGE[PAGE.index("/* ===== v10.14.0: Add media"):PAGE.index("/* ===== v10.12.0: Insights")]

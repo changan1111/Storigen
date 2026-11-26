@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from .common import HttpError
 from .api_blazeclips import merge_blaze
-from .ids import norm_name, strip_label, suffix_on
+from .ids import label_of, norm_name, strip_label, suffix_on
 
 STRIP_RE = re.compile(r"(?:_[UV]\d+)+$", re.I)          # 111126_FIRE_V01_U02 -> 111126_FIRE
 MAXN = 99                                                # the rule book: two digits
@@ -45,6 +45,32 @@ def plan_names(base, rows):
         s = slot("V%02d" % n, "Added clip V%02d" % n, vers, lambda u, n=n: "%s_V%02d_U%02d" % (base, n, u)); added.append(s)
     nv = (vs[-1] if vs else 0) + 1
     return {"main": m, "added": added, "next_v": "%s_V%02d" % (base, nv) if nv <= MAXN else None, "next_v_no": nv if nv <= MAXN else None}
+
+
+def _stem(name): return re.sub(r"\.[A-Za-z0-9]{2,4}$", "", re.split(r"[\\/]", (name or "").strip())[-1])
+
+
+def clip_labels(rows, bclips, files):
+    """v11.2.0, pure (tested on its own). The label each clip carries in its file name: 111126_FIRE_V01 (byte), 111126_FIRE (tag) ... -> {norm_name(clip name): 'byte' | 'minibyte' | 'tag' | 'del' | the text in brackets}.
+    The label is only ever in the file name as the editor typed it, never in the registry, so it is read back from the two places that still hold that name: the file names the watcher saw
+    (files: [{clip_id, name}], oldest first) and Blaze's own clip titles (bclips: [{title}]; what is really in the story, so it has the last word: a clip that Blaze holds WITHOUT a label shows none).
+    A clip with no label simply has no entry. Nothing is guessed and nothing is stored. With VERSION_SUFFIX=off the labels are not read at all (the matching ignores them too)."""
+    out = {}
+    if not suffix_on(): return out
+    seen = {}
+    for f in files or []:
+        lab = label_of(_stem(f.get("name")))
+        if lab: seen[f.get("clip_id")] = lab
+    for x in rows or []:
+        k = norm_name(x.get("name_id") or x.get("display_id") or ""); lab = x.get("label") or seen.get(x.get("id"))
+        if k and lab: out[k] = lab
+    for c in bclips or []:
+        raw = _stem(c.get("title")); clean = strip_label(raw); k = norm_name(clean)
+        if not k: continue
+        lab = label_of(raw) if clean != raw else ""
+        if lab: out[k] = lab
+        else: out.pop(k, None)
+    return out
 
 
 class BotMixin:
@@ -85,14 +111,23 @@ class BotMixin:
             day = max(x["day"] for x in mine)
             plain = next((x for x in mine if int(x["version"] or 1) == 1), None)
             base = base_of((plain or mine[0])["name_id"] or (plain or mine[0])["display_id"])
-            allr = cur.q("""SELECT c.name_id, c.display_id, c.version, c.state, c.replaced_at, s.blaze_story_id FROM clip_ids c JOIN stories s ON s.id=c.story_id WHERE c.day=? AND s.deleted=0""", (day,))
+            allr = cur.q("""SELECT c.id, c.name_id, c.display_id, c.version, c.state, c.replaced_at, s.blaze_story_id FROM clip_ids c JOIN stories s ON s.id=c.story_id WHERE c.day=? AND s.deleted=0""", (day,))
             same = [x for x in allr if x["blaze_story_id"] == sid or norm_name(base_of(x["name_id"] or x["display_id"])) == norm_name(base)]      # the same story in other bulletins, and stories with the same name: one clip name
             bul = cur.q("""SELECT DISTINCT ru.name, ru.start_at FROM stories s JOIN rundowns ru ON ru.id=s.rundown_id WHERE s.blaze_story_id=? AND s.deleted=0 ORDER BY COALESCE(ru.start_at,''), ru.name""", (sid,))
         for x in same: x["name_id"] = x["name_id"] or x["display_id"]
         bclips, how, seen, note = self.blaze_clips_now(r, rid, sid)                      # v10.17.0: the REAL clip list from Blaze (the read-only request the Delete button uses), merged with the registry
         same, others = merge_blaze(base, same, bclips) if how != "none" else (same, [])
         plan = plan_names(base, same)
-        clips = sorted(({"name": x["name_id"], "version": int(x["version"] or 1), "state": x["state"], "replaced": bool(x.get("replaced_at"))} for x in {int(y["version"] or 1): y for y in same}.values()), key=lambda y: (y["version"] != 1, y["version"] >= 10000, y["version"]))
+        files = []                                                                       # v11.2.0: the file names the watcher saw for these clips (they still carry the (byte) / (minibyte) / (tag) / (del) label the editor typed)
+        ids = [x["id"] for x in same if x.get("id")]
+        if ids and suffix_on():
+            with self.db.tx() as cur:
+                for i in range(0, len(ids), 400):
+                    part = ids[i:i + 400]
+                    files += [{"clip_id": f["clip_id"], "name": f["p"]} for f in cur.q("SELECT clip_id, COALESCE(nas_path, nitro_path) AS p FROM files WHERE clip_id IN (%s) AND (nas_path IS NOT NULL OR nitro_path IS NOT NULL) ORDER BY id" % ",".join("?" * len(part)), part)]
+        labels = clip_labels(same, bclips if how != "none" else [], files)
+        for sl in ([plan["main"]] if plan["main"] else []) + plan["added"]: sl["current_label"] = labels.get(norm_name(sl["current"] or ""), "")
+        clips = sorted(({"name": x["name_id"], "version": int(x["version"] or 1), "state": x["state"], "replaced": bool(x.get("replaced_at")), "label": labels.get(norm_name(x["name_id"]), "")} for x in {int(y["version"] or 1): y for y in same}.values()), key=lambda y: (y["version"] != 1, y["version"] >= 10000, y["version"]))
         return {"story": {"id": sid, "title": (st["slug"] or st["story_title"] or "").strip() or "story " + sid, "bulletin": st["rundown"], "aired": self.aired(st["start_at"])},
                 "base": base, "day": day, "clips": clips, "main": plan["main"], "added": plan["added"], "next_v": plan["next_v"], "next_v_no": plan["next_v_no"],
                 "bulletins": [{"name": b["name"], "aired": self.aired(b["start_at"])} for b in bul], "version_suffix": suffix_on(),

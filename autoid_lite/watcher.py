@@ -92,6 +92,7 @@ def parse_name(name: str):
     stem = os.path.splitext(name)[0]
     if SUFFIX_ON:      # v11.0.0: 111126_FIRE_V01 (byte).mxf: whatever follows the version (byte / minibyte / tag) is a label for people and is ignored (stand-alone copy of ids.strip_label)
         stem = re.sub(r"(_[UV]\d+)[ _\-]+(?:mini[ _\-]?byte|byte|tag)$", r"\1", re.sub(r"(_[UV]\d+)[ _\-]*\([^()]*\)", r"\1", stem.strip()), flags=re.I).strip()
+        stem = re.sub(r"(?:[ _\-]*\(\s*(?:mini[ _\-]?byte|byte|tag|del)\s*\))+\s*$", "", stem, flags=re.I).strip()      # v11.2.0: the plain clip too: 111126_FIRE (byte) / (minibyte) / (tag) / (del), in brackets only (a story called ..._BYTE is untouched)
     m = re.match(r"^(\d{8})_(\d{4})([A-Z])?(?:_|$)", stem)
     v = re.search(r"_V(\d+)$", stem)
     if m: return m.group(1), int(m.group(2)), int(v.group(1)) if v else 1, m.group(3)

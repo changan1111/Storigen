@@ -1,6 +1,6 @@
 {
   "name": "storigen-desktop",
-  "version": "11.1.0",
+  "version": "11.2.0",
   "description": "Storigen dashboard in its own desktop window",
   "main": "main.js",
   "author": "Storigen",

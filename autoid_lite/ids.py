@@ -58,15 +58,24 @@ def chain_version(base, kind, n):
 # ---- v11.0.0: a label after the version is only for people: 111126_FIRE_V01 (byte), _V02 (minibyte), _V01_U01 (tag). Everything after the version is ignored for matching and attaching.
 LABEL_PAREN = re.compile(r"(_[UV]\d+)[ _\-]*\([^()]*\)", re.I)                          # _V01 (byte) -> _V01, also in the middle: _V01 (byte)_U01 -> _V01_U01
 LABEL_WORD = re.compile(r"(_[UV]\d+)[ _\-]+(?:mini[ _\-]?byte|byte|tag)$", re.I)        # _V01 byte / _V01_minibyte / _V01 tag at the very end
+# ---- v11.2.0: the plain (base) clip takes a label too: 111126_FIRE (byte), 111126_FIRE (minibyte), 111126_FIRE (tag), 111126_FIRE (del).
+# Only a KNOWN word INSIDE BRACKETS at the very end counts. A story name that has the word BYTE / TAG / DEL in it (111126_MODI_BYTE, 111126_FIRE_TAG) is untouched,
+# and so is a copy number such as '111126_FIRE (2)' or '111126_FIRE_2'.
+BASE_WORDS = r"mini[ _\-]?byte|byte|tag|del"
+BASE_LABEL = re.compile(r"(?:[ _\-]*\(\s*(?:%s)\s*\))+\s*$" % BASE_WORDS, re.I)      # ... (byte) / ... (minibyte) (tag) at the very end of a plain clip name
 def strip_label(name):
-    """The name without its (byte) / (minibyte) / (tag) label. Only text that follows a _Un / _Vn counts as a label, so a story called 'BYTE' is untouched.
-    With VERSION_SUFFIX=off nothing is changed."""
+    """The name without its (byte) / (minibyte) / (tag) label. After a _Un / _Vn any text in brackets (or the plain words byte / minibyte / tag) is a label; on the plain clip name
+    only (byte) / (minibyte) / (tag) / (del) in brackets at the very end is (v11.2.0). So a story called 'BYTE' is untouched. With VERSION_SUFFIX=off nothing is changed."""
     if not suffix_on(): return name or ""
-    return LABEL_WORD.sub(r"\1", LABEL_PAREN.sub(r"\1", (name or "").strip())).strip()
+    return BASE_LABEL.sub("", LABEL_WORD.sub(r"\1", LABEL_PAREN.sub(r"\1", (name or "").strip())).strip()).strip()
 def label_of(name):
-    """'byte' for '111126_FIRE_V01 (byte)', '' when there is no label (text only; nothing is stored)."""
-    m = re.search(r"_[UV]\d+[ _\-]*\(([^()]*)\)|_[UV]\d+[ _\-]+(mini[ _\-]?byte|byte|tag)$", name or "", re.I)
-    return (m and (m.group(1) or m.group(2)) or "").strip().lower()
+    """'byte' for '111126_FIRE_V01 (byte)' and for '111126_FIRE (byte)'; 'minibyte' for (mini byte) too; '' when there is no label (text only; nothing is stored)."""
+    s = (name or "").strip()
+    m = re.search(r"_[UV]\d+[ _\-]*\(([^()]*)\)|_[UV]\d+[ _\-]+(mini[ _\-]?byte|byte|tag)$", s, re.I)
+    lab = (m and (m.group(1) or m.group(2)) or "").strip().lower()
+    if not lab:
+        b = BASE_LABEL.search(s); w = re.findall(r"\(\s*(%s)\s*\)" % BASE_WORDS, b.group(0), re.I) if b else []; lab = w[-1].lower() if w else ""
+    return "minibyte" if re.fullmatch(r"mini[ _\-]?byte", lab) else lab
 def split_suffix(name):
     """With VERSION_SUFFIX=on: 111126_FIRE_U02 -> ('111126_FIRE', 'U', 2); None when the name has no _U/_V suffix or the switch is off."""
     name = strip_label(name); m = suffix_on() and SUF_RE.search(name or "")

@@ -94,7 +94,7 @@ class DashboardMixin:
         order = {"row": "ORDER BY %s, s.position IS NULL, s.position %s, c.seq, c.id" % (rid, D),
                  "title": "ORDER BY LOWER(COALESCE(NULLIF(s.story_title,''), NULLIF(s.slug,''), c.display_id)) %s, %s, %s, c.seq, c.id" % (D, rid, pos),
                  "status": "ORDER BY %s %s, %s, %s, c.seq, c.id" % (rank, D, rid, pos),
-                 "clips": "ORDER BY (SELECT COUNT(*) FROM clip_ids c2 WHERE c2.story_id=c.story_id) %s, %s, %s, c.seq, c.id" % (D, rid, pos)}.get(srt) or (("ORDER BY CASE WHEN c.state IN ('ON_NITRO','NEEDS_DESK','ATTACH_SUBMITTED') THEN 0 ELSE 1 END, CAST(ru.blaze_rundown_id AS INTEGER), s.position IS NULL, s.position, c.seq, c.id") if per else "ORDER BY c.seq, c.id")
+                 "clips": "ORDER BY (SELECT COUNT(*) FROM clip_ids c2 WHERE c2.story_id=c.story_id AND c2.state='ATTACHED' AND c2.replaced_at IS NULL) %s, %s, %s, c.seq, c.id" % (D, rid, pos)}.get(srt) or (("ORDER BY CASE WHEN c.state IN ('ON_NITRO','NEEDS_DESK','ATTACH_SUBMITTED') THEN 0 ELSE 1 END, CAST(ru.blaze_rundown_id AS INTEGER), s.position IS NULL, s.position, c.seq, c.id") if per else "ORDER BY c.seq, c.id")
         with self.db.tx() as cur:
             by = {x["state"]: x["n"] for x in cur.q("SELECT c.state, COUNT(*) AS n " + base + " GROUP BY c.state", args)}
             shows = cur.q("SELECT ru.blaze_rundown_id AS id, ru.name, ru.start_at AS start, COUNT(*) AS n FROM clip_ids c JOIN stories s ON s.id=c.story_id JOIN rundowns ru ON ru.id=s.rundown_id WHERE c.day=? GROUP BY ru.id ORDER BY ru.start_at IS NULL, datetime(ru.start_at), CAST(ru.blaze_rundown_id AS INTEGER), ru.name", (d.isoformat(),))
@@ -120,14 +120,15 @@ class DashboardMixin:
         if rows:                                                                          # v10.18.0: the count of clips Blaze holds that Storigen did not make is worked out for every setting (it used to need VERSION_SUFFIX=on, so a clip added with + showed nowhere on the story card when it was off)
             with self.db.tx() as cur: hand = self.hand_counts(cur, rows)
             for x in rows: x["hand_clips"] = hand.get(x["story_id"], 0)
-        if suffix_on() and rows:                                                          # v10.5.0: the story's clips for the badge. v10.7.0: story_clips = the clips really in the story (attached and not replaced), not the number of clip IDs; replaced_label = which update took a clip's place
+        if rows:                                                                          # v10.5.0: the story's clips for the badge. v10.7.0: story_clips = the clips really in the story (attached and not replaced), not the number of clip IDs; replaced_label = which update took a clip's place. v11.2.0: story_clips is worked out whatever VERSION_SUFFIX is, so a story whose clip is not attached yet says 0, not 1
             with self.db.tx() as cur:
                 ids = sorted({x["story_id"] for x in rows}); info = {}
                 for i in range(0, len(ids), 500):
                     part = ids[i:i + 500]
                     for y in cur.q("SELECT story_id, SUM(CASE WHEN state='ATTACHED' AND replaced_at IS NULL THEN 1 ELSE 0 END) AS n, MAX(CASE WHEN version>1000 AND version<2000 THEN version END) AS u FROM clip_ids WHERE story_id IN (%s) GROUP BY story_id" % ",".join("?" * len(part)), part): info[y["story_id"]] = y
             for x in rows:
-                y = info.get(x["story_id"]) or {}; x["story_clips"] = (y.get("n") or 0) + hand.get(x["story_id"], 0); x["replaced_label"] = (re.search(r"_([UV]\d+)$", x["replaced_by"]).group(1) if x.get("replaced_by") and re.search(r"_([UV]\d+)$", x["replaced_by"]) else None); x["story_update"] = vlabel(y["u"]) if y.get("u") else None; x["vlabel"] = vlabel(x["version"]) if kind_of(x["version"]) else None
+                y = info.get(x["story_id"]) or {}; x["story_clips"] = (y.get("n") or 0) + hand.get(x["story_id"], 0)
+                if suffix_on(): x["replaced_label"] = (re.search(r"_([UV]\d+)$", x["replaced_by"]).group(1) if x.get("replaced_by") and re.search(r"_([UV]\d+)$", x["replaced_by"]) else None); x["story_update"] = vlabel(y["u"]) if y.get("u") else None; x["vlabel"] = vlabel(x["version"]) if kind_of(x["version"]) else None
         wmap, wts = getattr(self, "why", ({}, 0)); wlive = time.time() - wts < 120          # v9.13.1: only while the poller is sending it
         for x in rows: x["why"] = wmap.get(x["display_id"]) if wlive and x["state"] != "ATTACHED" else None
         for x in rows: x["deleted"] = bool(x["deleted"]); x["typed"] = x["blaze_rundown_id"].startswith("name:") or x["blaze_story_id"].startswith("manual-")

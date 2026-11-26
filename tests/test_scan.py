@@ -43,7 +43,7 @@ def test_the_files_are_served_only_by_plain_name_to_a_signed_in_page(tmp_path, m
 
 def test_config_tells_the_page_whether_the_scan_can_run(tmp_path, monkeypatch):
     monkeypatch.setenv("SCAN_MODEL_DIR", str(tmp_path / "scan")); s = Srv(tmp_path, "placeholder"); assert s.login()[0] == 200
-    c = s.call("GET", "/api/config")[1]; assert c["scan"]["ready"] is False and c["scan"]["missing"] == ["manifest.json"] and c["version"] == "11.1"
+    c = s.call("GET", "/api/config")[1]; assert c["scan"]["ready"] is False and c["scan"]["missing"] == ["manifest.json"] and c["version"] == "11.2"
     fill(tmp_path / "scan"); c = s.call("GET", "/api/config")[1]; assert c["scan"]["ready"] is True and c["scan"]["name"] == "T"
     monkeypatch.setenv("SCAN_ENABLED", "0"); assert s.call("GET", "/api/config")[1]["scan"].get("off") is True
 
